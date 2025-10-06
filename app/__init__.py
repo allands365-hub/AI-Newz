@@ -1,0 +1,1 @@
+# AI-Newz Backend Application
