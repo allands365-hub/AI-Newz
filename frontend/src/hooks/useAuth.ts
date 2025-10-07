@@ -1,51 +1,121 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/auth';
-import { apiClient } from '@/lib/api';
-import { GoogleCredentialResponse } from '@/lib/google-auth';
+import { supabase } from '@/lib/supabase';
+import type { AuthError } from '@supabase/supabase-js';
 
 export const useAuth = () => {
   const router = useRouter();
   const {
     user,
-    token,
+    userProfile,
     isAuthenticated,
     isLoading,
     error,
-    login,
-    logout,
+    setUser,
+    setUserProfile,
     setLoading,
     setError,
     clearError,
-    updateUser,
+    signOut,
     initializeAuth,
   } = useAuthStore();
 
   // Initialize auth on mount
   useEffect(() => {
     initializeAuth();
-  }, [initializeAuth]);
 
-  const handleGoogleAuth = async (response: GoogleCredentialResponse) => {
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
+        
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user);
+          
+          // Get or create user profile
+          try {
+            const { data: profile, error: profileError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            if (profileError && profileError.code === 'PGRST116') {
+              // User profile doesn't exist, create it
+            // Extract profile picture from various possible fields
+            const profilePicture = 
+              session.user.user_metadata?.avatar_url ||
+              session.user.user_metadata?.picture ||
+              session.user.user_metadata?.photoURL ||
+              session.user.identities?.[0]?.identity_data?.avatar_url ||
+              session.user.identities?.[0]?.identity_data?.picture;
+
+            const { data: newProfile, error: createError } = await supabase
+              .from('users')
+              .insert({
+                id: session.user.id,
+                email: session.user.email!,
+                name: session.user.user_metadata?.full_name || 
+                      session.user.user_metadata?.name || 
+                      session.user.email!.split('@')[0],
+                profile_picture: profilePicture,
+                google_id: session.user.user_metadata?.provider_id ||
+                          session.user.identities?.[0]?.provider_id,
+                auth_provider: 'google',
+                is_verified: !!session.user.email_confirmed_at,
+                last_login: new Date().toISOString(),
+              })
+              .select()
+              .single();
+
+              if (createError) {
+                console.error('Error creating user profile:', createError);
+                setError('Failed to create user profile');
+              } else {
+                setUserProfile(newProfile);
+              }
+            } else if (profileError) {
+              console.error('Error getting user profile:', profileError);
+              setError('Failed to get user profile');
+            } else {
+              setUserProfile(profile);
+            }
+          } catch (error) {
+            console.error('Error handling user profile:', error);
+            setError('Failed to handle user profile');
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setUserProfile(null);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [initializeAuth, setUser, setUserProfile, setError]);
+
+  const handleGoogleAuth = async () => {
     try {
       setLoading(true);
       clearError();
 
-      const authResponse = await apiClient.verifyGoogleToken({
-        id_token: response.credential,
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
 
-      login(authResponse.user, authResponse.access_token);
-
-      // Redirect based on whether user is new
-      if (authResponse.is_new_user) {
-        router.push('/onboarding');
-      } else {
-        router.push('/dashboard');
+      if (error) {
+        console.error('Google auth error:', error);
+        setError(error.message);
       }
     } catch (error: any) {
       console.error('Google auth error:', error);
-      setError(error.response?.data?.detail || 'Google authentication failed');
+      setError(error.message || 'Google authentication failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -54,33 +124,56 @@ export const useAuth = () => {
       setLoading(true);
       clearError();
 
-      const authResponse = await apiClient.emailLogin({ email, password });
-      login(authResponse.user, authResponse.access_token);
-      router.push('/dashboard');
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Email login error:', error);
+        setError(error.message);
+      }
     } catch (error: any) {
       console.error('Email login error:', error);
-      setError(error.response?.data?.detail || 'Login failed');
+      setError(error.message || 'Login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleEmailRegister = async (email: string, name: string, password: string) => {
+  const handleEmailRegister = async (email: string, password: string, name: string) => {
     try {
       setLoading(true);
       clearError();
 
-      const authResponse = await apiClient.emailRegister({ email, name, password });
-      login(authResponse.user, authResponse.access_token);
-      router.push('/onboarding');
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
+      });
+
+      if (error) {
+        console.error('Email registration error:', error);
+        setError(error.message);
+      } else if (data.user && !data.user.email_confirmed_at) {
+        setError('Please check your email to confirm your account');
+      }
     } catch (error: any) {
       console.error('Email registration error:', error);
-      setError(error.response?.data?.detail || 'Registration failed');
+      setError(error.message || 'Registration failed');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleLogout = async () => {
     try {
       setLoading(true);
-      await logout();
+      await signOut();
       router.push('/');
     } catch (error) {
       console.error('Logout error:', error);
@@ -103,8 +196,8 @@ export const useAuth = () => {
 
   return {
     // State
-    user,
-    token,
+    user: userProfile, // Return userProfile for consistency with existing code
+    token: user?.access_token,
     isAuthenticated,
     isLoading,
     error,
@@ -114,7 +207,7 @@ export const useAuth = () => {
     handleEmailLogin,
     handleEmailRegister,
     handleLogout,
-    updateUser,
+    updateUser: setUserProfile,
     clearError,
 
     // Utilities
