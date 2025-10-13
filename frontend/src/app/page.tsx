@@ -17,12 +17,14 @@ import Link from 'next/link';
 
 export default function HomePage() {
   const router = useRouter();
-  const { isAuthenticated, requireGuest } = useAuth();
+  // Temporarily disable auth to debug
+  // const { isAuthenticated, requireGuest } = useAuth();
 
   // Redirect if already authenticated
   useEffect(() => {
-    requireGuest();
-  }, [requireGuest]);
+    // Temporarily disabled to debug authentication issue
+    // requireGuest();
+  }, []);
 
   const features = [
     {

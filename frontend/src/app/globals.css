@@ -10,13 +10,13 @@
   }
   
   body {
-    @apply text-secondary-900 bg-icy-gradient-soft;
+    @apply text-secondary-900 bg-ai-gradient-soft;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-icy-gradient-strong hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 hover:scale-105;
+    @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-ai-gradient-strong hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 hover:scale-105;
   }
   
   .btn-secondary {

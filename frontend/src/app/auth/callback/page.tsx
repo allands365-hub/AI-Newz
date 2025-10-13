@@ -71,7 +71,7 @@ export default function AuthCallbackPage() {
                       data.session.user.email!.split('@')[0],
                 profile_picture: profilePicture,
                 google_id: data.session.user.user_metadata?.provider_id ||
-                          data.session.user.identities?.[0]?.provider_id,
+                          data.session.user.identities?.[0]?.provider,
                 auth_provider: 'google',
                 is_verified: !!data.session.user.email_confirmed_at,
                 last_login: new Date().toISOString(),

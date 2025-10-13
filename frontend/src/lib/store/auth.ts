@@ -24,6 +24,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  isInitializing: boolean;
 }
 
 interface AuthActions {
@@ -43,8 +44,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       user: null,
       userProfile: null,
       isAuthenticated: false,
-      isLoading: false,
+      isLoading: true, // Always start with loading to prevent hydration issues
       error: null,
+      isInitializing: false,
 
       // Actions
       setUser: (user: User | null) => {
@@ -86,39 +88,122 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       },
 
       initializeAuth: async () => {
+        // Only run on client side
+        if (typeof window === 'undefined') {
+          console.log('Auth init: Server side, skipping');
+          return;
+        }
+
+        // Prevent multiple simultaneous calls
+        const { isInitializing } = get();
+        if (isInitializing) {
+          console.log('Auth init: Already initializing, skipping');
+          return;
+        }
+
+        console.log('Auth init: Starting initialization');
         try {
-          set({ isLoading: true });
+          set({ isLoading: true, isInitializing: true });
           
-          // Get initial session
-          const { data: { session }, error } = await supabase.auth.getSession();
+          // Get initial session with timeout
+          console.log('Auth init: Getting session');
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session timeout')), 5000)
+          );
+          
+          const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
           
           if (error) {
             console.error('Error getting session:', error);
-            set({ error: error.message, isLoading: false });
+            set({ error: error.message, isLoading: false, isInitializing: false });
             return;
           }
+
+          console.log('Auth init: Session result', { hasSession: !!session, hasUser: !!session?.user });
 
           if (session?.user) {
             set({ user: session.user, isAuthenticated: true });
             
-            // Get user profile from our custom table
-            const { data: profile, error: profileError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
+            // Try to fetch user profile from database
+            console.log('Auth init: User found, fetching profile...');
+            try {
+              const { data: profile, error: profileError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
 
-            if (profileError) {
-              console.error('Error getting user profile:', profileError);
-            } else {
-              set({ userProfile: profile });
+              if (profileError && profileError.code === 'PGRST116') {
+                // User profile doesn't exist, create it
+                console.log('Auth init: Creating new user profile...');
+                
+                // Extract profile picture from various possible fields
+                let profilePicture = 
+                  session.user.user_metadata?.avatar_url ||
+                  session.user.user_metadata?.picture ||
+                  session.user.user_metadata?.photoURL ||
+                  session.user.user_metadata?.photo_url ||
+                  session.user.user_metadata?.image ||
+                  session.user.identities?.[0]?.identity_data?.avatar_url ||
+                  session.user.identities?.[0]?.identity_data?.picture ||
+                  session.user.identities?.[0]?.identity_data?.photo_url ||
+                  session.user.identities?.[0]?.identity_data?.image;
+
+                // Fix Google profile picture URL to avoid CORB issues
+                if (profilePicture && profilePicture.includes('googleusercontent.com')) {
+                  profilePicture = profilePicture.replace(/=s\d+-c$/, '');
+                  if (!profilePicture.includes('=')) {
+                    profilePicture += '=s96-c';
+                  }
+                }
+
+                const { data: newProfile, error: createError } = await supabase
+                  .from('users')
+                  .insert({
+                    id: session.user.id,
+                    email: session.user.email!,
+                    name: session.user.user_metadata?.full_name || 
+                          session.user.user_metadata?.name || 
+                          session.user.email!.split('@')[0],
+                    profile_picture: profilePicture,
+                    google_id: session.user.user_metadata?.provider_id ||
+                              session.user.identities?.[0]?.provider_id,
+                    auth_provider: 'google',
+                    is_verified: !!session.user.email_confirmed_at,
+                    last_login: new Date().toISOString(),
+                  })
+                  .select()
+                  .single();
+
+                if (createError) {
+                  console.error('Auth init: Error creating user profile:', createError);
+                  set({ userProfile: null });
+                } else {
+                  console.log('Auth init: User profile created successfully');
+                  set({ userProfile: newProfile });
+                }
+              } else if (profileError) {
+                console.error('Auth init: Error getting user profile:', profileError);
+                set({ userProfile: null });
+              } else {
+                console.log('Auth init: User profile fetched successfully');
+                set({ userProfile: profile, isInitializing: false });
+              }
+            } catch (error) {
+              console.error('Auth init: Error handling user profile:', error);
+              set({ userProfile: null });
             }
+          } else {
+            console.log('Auth init: No user in session');
+            set({ isInitializing: false });
           }
         } catch (error) {
           console.error('Auth initialization error:', error);
-          set({ error: 'Failed to initialize authentication' });
+          set({ error: 'Failed to initialize authentication', isInitializing: false });
         } finally {
-          set({ isLoading: false });
+          console.log('Auth init: Setting isLoading to false');
+          set({ isLoading: false, isInitializing: false });
         }
       },
     }),

@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function DebugPage() {
   const [userData, setUserData] = useState<any>(null);
-  const { user, userProfile } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     const getUserData = async () => {
@@ -18,7 +18,7 @@ export default function DebugPage() {
           user_metadata: session.user.user_metadata,
           identities: session.user.identities,
           app_metadata: session.user.app_metadata,
-          raw_user_meta_data: session.user.raw_user_meta_data,
+          raw_user_meta_data: session.user.user_metadata,
         });
       }
     };
@@ -51,7 +51,7 @@ export default function DebugPage() {
               <div>
                 <h3 className="font-medium">User Profile:</h3>
                 <pre className="text-xs bg-gray-100 p-2 rounded">
-                  {JSON.stringify(userProfile, null, 2)}
+                  {JSON.stringify(user, null, 2)}
                 </pre>
               </div>
             </div>

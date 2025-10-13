@@ -61,7 +61,7 @@ export const useAuth = () => {
                       session.user.email!.split('@')[0],
                 profile_picture: profilePicture,
                 google_id: session.user.user_metadata?.provider_id ||
-                          session.user.identities?.[0]?.provider_id,
+                          session.user.identities?.[0]?.provider,
                 auth_provider: 'google',
                 is_verified: !!session.user.email_confirmed_at,
                 last_login: new Date().toISOString(),
@@ -197,7 +197,7 @@ export const useAuth = () => {
   return {
     // State
     user: userProfile, // Return userProfile for consistency with existing code
-    token: user?.access_token,
+    token: () => supabase.auth.getSession().then(({ data }) => data.session?.access_token || null),
     isAuthenticated,
     isLoading,
     error,
@@ -207,6 +207,7 @@ export const useAuth = () => {
     handleEmailLogin,
     handleEmailRegister,
     handleLogout,
+    signOut,
     updateUser: setUserProfile,
     clearError,
 

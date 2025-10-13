@@ -75,7 +75,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-icy-gradient py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-ai-gradient-soft py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -98,7 +98,7 @@ export default function LoginPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="mt-6 text-center text-3xl font-extrabold text-gray-900"
+            className="mt-6 text-center text-3xl font-extrabold bg-ai-gradient bg-clip-text text-transparent"
           >
             Welcome back to AI-Newz
           </motion.h2>

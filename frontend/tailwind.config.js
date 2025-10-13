@@ -8,58 +8,60 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Icy Gradient Color Palette
+        // AI Purple Gradient Color Palette
         primary: {
-          50: '#f0f9ff',   // Very light icy blue
-          100: '#e0f2fe',  // Light icy blue
-          200: '#bae6fd',  // Soft icy blue
-          300: '#7dd3fc',  // Medium icy blue
-          400: '#38bdf8',  // Bright icy blue
-          500: '#0ea5e9',  // Main icy blue
-          600: '#0284c7',  // Deep icy blue
-          700: '#0369a1',  // Darker icy blue
-          800: '#075985',  // Dark icy blue
-          900: '#0c4a6e',  // Very dark icy blue
+          50: '#faf5ff',   // Very light purple
+          100: '#f3e8ff',  // Light purple
+          200: '#e9d5ff',  // Soft purple
+          300: '#d8b4fe',  // Medium purple
+          400: '#c084fc',  // Bright purple
+          500: '#8b5cf6',  // Main violet (AI Purple)
+          600: '#7c3aed',  // Deep violet
+          700: '#6d28d9',  // Darker violet
+          800: '#5b21b6',  // Dark violet
+          900: '#4c1d95',  // Very dark violet
         },
         secondary: {
-          50: '#f8fafc',   // Pure white with hint of blue
-          100: '#f1f5f9',  // Very light gray-blue
-          200: '#e2e8f0',  // Light gray-blue
-          300: '#cbd5e1',  // Medium gray-blue
-          400: '#94a3b8',  // Gray-blue
-          500: '#64748b',  // Slate blue
-          600: '#475569',  // Dark slate blue
-          700: '#334155',  // Darker slate blue
-          800: '#1e293b',  // Very dark slate blue
-          900: '#0f172a',  // Almost black with blue tint
+          50: '#fafafa',   // Pure white
+          100: '#f4f4f5',  // Very light gray
+          200: '#e4e4e7',  // Light gray
+          300: '#d4d4d8',  // Medium gray
+          400: '#a1a1aa',  // Gray
+          500: '#71717a',  // Slate gray
+          600: '#52525b',  // Dark slate gray
+          700: '#3f3f46',  // Darker slate gray
+          800: '#27272a',  // Very dark slate gray
+          900: '#18181b',  // Almost black
         },
         accent: {
-          50: '#f0fdfa',   // Very light mint
-          100: '#ccfbf1',  // Light mint
-          200: '#99f6e4',  // Soft mint
-          300: '#5eead4',  // Medium mint
-          400: '#2dd4bf',  // Bright mint
-          500: '#14b8a6',  // Main mint
-          600: '#0d9488',  // Deep mint
-          700: '#0f766e',  // Darker mint
-          800: '#115e59',  // Dark mint
-          900: '#134e4a',  // Very dark mint
+          50: '#fdf2f8',   // Very light pink
+          100: '#fce7f3',  // Light pink
+          200: '#fbcfe8',  // Soft pink
+          300: '#f9a8d4',  // Medium pink
+          400: '#f472b6',  // Bright pink
+          500: '#ec4899',  // Main pink (AI Accent)
+          600: '#db2777',  // Deep pink
+          700: '#be185d',  // Darker pink
+          800: '#9d174d',  // Dark pink
+          900: '#831843',  // Very dark pink
         },
         // Gradient colors for special effects
         gradient: {
-          from: '#f0f9ff',  // Start of icy gradient
-          via: '#e0f2fe',   // Middle of icy gradient
-          to: '#0ea5e9',    // End of icy gradient
+          from: '#8b5cf6',  // Start of AI purple gradient
+          via: '#7c3aed',   // Middle of AI purple gradient
+          to: '#ec4899',    // End of AI purple gradient (pink accent)
         },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        'icy-gradient': 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #0ea5e9 100%)',
-        'icy-gradient-soft': 'linear-gradient(135deg, #f0f9ff 0%, #bae6fd 100%)',
-        'icy-gradient-strong': 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
-        'icy-radial': 'radial-gradient(circle at center, #f0f9ff 0%, #0ea5e9 100%)',
+        'ai-gradient': 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #ec4899 100%)',
+        'ai-gradient-soft': 'linear-gradient(135deg, #faf5ff 0%, #e9d5ff 100%)',
+        'ai-gradient-strong': 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+        'ai-radial': 'radial-gradient(circle at center, #faf5ff 0%, #8b5cf6 100%)',
+        'ai-purple-gradient': 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
+        'ai-purple-gradient-soft': 'linear-gradient(135deg, #f3e8ff 0%, #fce7f3 100%)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
