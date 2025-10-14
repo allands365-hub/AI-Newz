@@ -258,67 +258,7 @@ class SupabaseRSSService:
                 
         except Exception as e:
             logger.error(f"Error getting articles for user via REST API: {e}")
-            # Fallback: try to get articles using direct SQL query
-            try:
-                logger.info("Trying fallback method with direct SQL query...")
-                # This is a temporary workaround - in production, use proper service role key
-                return await self._get_articles_fallback(user_id, limit, offset, category, min_quality, exclude_duplicates, exclude_used)
-            except Exception as fallback_error:
-                logger.error(f"Fallback method also failed: {fallback_error}")
-                return []
-
-    async def _get_articles_fallback(
-        self, 
-        user_id: str, 
-        limit: int = 20, 
-        offset: int = 0,
-        category: Optional[str] = None,
-        min_quality: Optional[float] = None,
-        exclude_duplicates: bool = True,
-        exclude_used: bool = False
-    ) -> List[Dict[str, Any]]:
-        """Fallback method to get articles using direct SQL query"""
-        try:
-            # Build SQL query
-            query = f"""
-            SELECT * FROM articles 
-            WHERE user_id = '{user_id}'
-            """
-            
-            if category:
-                query += f" AND category = '{category}'"
-            
-            if min_quality is not None:
-                query += f" AND quality_score >= {min_quality}"
-            
-            if exclude_duplicates:
-                query += " AND is_duplicate = false"
-            
-            if exclude_used:
-                query += " AND is_used_in_newsletter = false"
-            
-            query += f" ORDER BY published_at DESC LIMIT {limit} OFFSET {offset}"
-            
-            # Execute SQL query using Supabase SQL endpoint
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.supabase_url}/rest/v1/rpc/exec_sql",
-                    headers=self.headers,
-                    json={"query": query}
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if isinstance(result, list):
-                        logger.info(f"Fallback method retrieved {len(result)} articles for user {user_id}")
-                        return result
-                    else:
-                        logger.error(f"Unexpected response format from fallback: {result}")
-                        return []
-                else:
-                    logger.error(f"Fallback SQL query failed with status {response.status_code}: {response.text}")
-                    return []
-                    
-        except Exception as e:
-            logger.error(f"Error in fallback method: {e}")
+            # Remove noisy fallback path; return empty on error
             return []
+
+    # Removed noisy fallback SQL method
