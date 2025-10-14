@@ -24,6 +24,10 @@ from app.services.supabase_service import SupabaseService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rss", tags=["RSS"])
+
+# Cache 404 favicon lookups per host to avoid repeated external requests
+_FAILED_FAVICON_HOSTS: dict[str, float] = {}
+_FAILED_TTL_SECONDS = 6 * 60 * 60  # 6 hours
 @router.get("/favicon")
 async def get_site_favicon(
     host: str = Query(..., description="Hostname or URL to derive host from"),
@@ -42,6 +46,13 @@ async def get_site_favicon(
             hostname = hostname.replace("www.", "")
         except Exception:
             hostname = host
+
+        # 404 cache short-circuit
+        import time
+        now = time.time()
+        cached_failed_at = _FAILED_FAVICON_HOSTS.get(hostname)
+        if cached_failed_at and (now - cached_failed_at) < _FAILED_TTL_SECONDS:
+            raise HTTPException(status_code=404, detail="Favicon not found (cached)")
 
         # Common direct locations (https and http)
         candidates = [
@@ -98,6 +109,8 @@ async def get_site_favicon(
         except Exception:
             pass
 
+        # Record failed attempt in cache
+        _FAILED_FAVICON_HOSTS[hostname] = time.time()
         raise HTTPException(status_code=404, detail="Favicon not found")
     except HTTPException:
         raise
