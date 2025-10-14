@@ -80,7 +80,7 @@ export default function RSSPage() {
       setError(null);
       
       const response = await fetch(API_ENDPOINTS.RSS.SOURCES, {
-        headers: getAuthHeaders()
+        headers: await getAuthHeaders()
       });
       
       if (!response.ok) {
@@ -106,7 +106,7 @@ export default function RSSPage() {
       if (selectedSource) params.append('source_id', selectedSource.toString());
       
       const response = await fetch(`${API_ENDPOINTS.RSS.ARTICLES}?${params}`, {
-        headers: getAuthHeaders()
+        headers: await getAuthHeaders()
       });
       
       if (!response.ok) {
@@ -129,7 +129,7 @@ export default function RSSPage() {
       setError(null);
       
       const response = await fetch(API_ENDPOINTS.RSS.ENHANCED_SOURCES, {
-        headers: getAuthHeaders()
+        headers: await getAuthHeaders()
       });
       
       if (!response.ok) {
@@ -155,7 +155,7 @@ export default function RSSPage() {
       if (selectedSource) params.append('source_id', selectedSource.toString());
       
       const response = await fetch(`${API_ENDPOINTS.RSS.ENHANCED_ARTICLES}?${params}`, {
-        headers: getAuthHeaders()
+        headers: await getAuthHeaders()
       });
       
       if (!response.ok) {
@@ -183,7 +183,7 @@ export default function RSSPage() {
     try {
       const response = await fetch(`${API_ENDPOINTS.RSS.SOURCES}/${sourceId}`, {
         method: 'DELETE',
-        headers: getAuthHeaders()
+        headers: await getAuthHeaders()
       });
       
       if (!response.ok) {
@@ -201,7 +201,7 @@ export default function RSSPage() {
     try {
       const response = await fetch(`${API_ENDPOINTS.RSS.SOURCES}/${sourceId}/test`, {
         method: 'POST',
-        headers: getAuthHeaders()
+        headers: await getAuthHeaders()
       });
       
       if (!response.ok) {
@@ -220,7 +220,7 @@ export default function RSSPage() {
     try {
       const response = await fetch(`${API_ENDPOINTS.RSS.SOURCES}/${sourceId}/refresh`, {
         method: 'POST',
-        headers: getAuthHeaders()
+        headers: await getAuthHeaders()
       });
       
       if (!response.ok) {

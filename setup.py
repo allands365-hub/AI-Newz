@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CreatorPulse Backend Setup Script
+AI-Newz Backend Setup Script
 """
 import os
 import subprocess
@@ -53,7 +53,7 @@ def main():
     print("\n🎉 Setup completed!")
     print("\nNext steps:")
     print("1. Configure your .env file with database and Google OAuth credentials")
-    print("2. Create your database: createdb creatorpulse")
+    print("2. Configure your Supabase database connection")
     print("3. Run migrations: alembic upgrade head")
     print("4. Start the server: python start.py")
     print("\nAPI will be available at: http://localhost:8000")

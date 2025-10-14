@@ -1,25 +1,23 @@
 # AI-Newz
 
-AI-powered newsletter creation platform that aggregates trusted sources, detects trends, and generates ready-to-send content in under 20 minutes.
+AI-powered newsletter creation platform with RSS feed integration, content analysis, and automated newsletter generation.
 
 ## 🚀 Features
 
-- **Google OAuth 2.0** - Seamless one-click authentication
-- **AI-Powered Generation** - OpenAI GPT-4 integration for content creation
-- **Smart Aggregation** - Automatic content collection from trusted sources
-- **Trend Detection** - Real-time trend analysis and insights
-- **Time Saving** - Reduce newsletter creation from 2-3 hours to <20 minutes
-- **High Engagement** - Achieve 70%+ draft acceptance rate
-- **Modern UI/UX** - Beautiful, responsive interface
+- **Google OAuth 2.0** - Seamless authentication with Supabase
+- **RSS Feed Management** - Complete RSS source management system
+- **Content Analysis** - AI-powered content categorization and quality scoring
+- **Newsletter Generation** - AI-powered newsletter creation
+- **Advanced Filtering** - Content filtering and trend detection
+- **Modern UI/UX** - Beautiful, responsive interface with Tailwind CSS
 
 ## 🏗️ Architecture
 
 ### Backend (FastAPI + Python)
-- **Authentication**: Google OAuth 2.0 + JWT
+- **Authentication**: Google OAuth 2.0 + JWT via Supabase
 - **Database**: PostgreSQL with SQLAlchemy ORM
-- **Caching**: Redis for performance
-- **AI Integration**: OpenAI GPT-4 API
-- **Content Sources**: RSS feeds, APIs, web scraping
+- **RSS Processing**: Feed parsing and content analysis
+- **AI Integration**: Content categorization and quality scoring
 
 ### Frontend (Next.js + React)
 - **Framework**: Next.js 14 with App Router
@@ -33,56 +31,41 @@ AI-powered newsletter creation platform that aggregates trusted sources, detects
 ### Prerequisites
 
 - Python 3.8+
-- Node.js 18+
-- PostgreSQL 12+
-- Redis 6+
-- Google Cloud Console account
+- Node.js 16+
+- PostgreSQL database (via Supabase)
 
-### Backend Setup
+### Installation
 
-```bash
-# Navigate to backend
-cd backend
+1. **Install Python dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+2. **Install frontend dependencies:**
+   ```bash
+   cd frontend
+   npm install
+   ```
 
-# Install dependencies
-pip install -r requirements.txt
+3. **Configure environment variables:**
+   - Copy `env.example` to `env.local`
+   - Add your Supabase credentials
 
-# Configure environment
-cp env.example .env
-# Edit .env with your configuration
+4. **Start the servers:**
+   ```bash
+   # Universal startup script (recommended)
+   python start.py
+   
+   # Or use platform-specific scripts
+   start.bat        # Windows Batch
+   start.ps1        # Windows PowerShell
+   ```
 
-# Setup database
-createdb ai_newz
-alembic upgrade head
+### URLs
 
-# Start backend
-python start.py
-```
-
-Backend will be available at `http://localhost:8000`
-
-### Frontend Setup
-
-```bash
-# Navigate to frontend
-cd frontend
-
-# Install dependencies
-npm install
-
-# Configure environment
-cp env.local.example .env.local
-# Edit .env.local with your configuration
-
-# Start frontend
-npm run dev
-```
-
-Frontend will be available at `http://localhost:3000`
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
 
 ## 🔧 Configuration
 

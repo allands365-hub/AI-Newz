@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
+import { API_ENDPOINTS, getAuthHeaders } from '@/lib/api-config';
 import { 
   ChartBarIcon, 
   DocumentTextIcon, 
@@ -12,15 +13,92 @@ import {
   ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 
+interface AnalyticsData {
+  total_newsletters: number;
+  published_newsletters: number;
+  draft_newsletters: number;
+  total_subscribers: number;
+  total_views: number;
+  avg_open_rate: number;
+  avg_click_rate: number;
+  growth: {
+    newsletters: string;
+    subscribers: string;
+    open_rate: string;
+    click_rate: string;
+  };
+}
+
+interface Newsletter {
+  id: number;
+  subject: string;
+  status: string;
+  created_at: string;
+  published_at?: string;
+  open_rate?: number;
+  click_rate?: number;
+  views_count?: number;
+}
+
 export default function DashboardPage() {
   const { user, handleLogout, requireAuth, isLoading } = useAuth();
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [recentNewsletters, setRecentNewsletters] = useState<Newsletter[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Require authentication
   useEffect(() => {
     requireAuth();
   }, [requireAuth]);
 
-  if (isLoading) {
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!user) return;
+      
+      try {
+        setDataLoading(true);
+        setError(null);
+        
+        const headers = await getAuthHeaders();
+        
+        // Fetch analytics data
+        const analyticsResponse = await fetch(API_ENDPOINTS.ANALYTICS.OVERVIEW, {
+          headers
+        });
+        
+        if (!analyticsResponse.ok) {
+          throw new Error('Failed to fetch analytics data');
+        }
+        
+        const analytics = await analyticsResponse.json();
+        setAnalyticsData(analytics);
+        
+        // Fetch recent newsletters
+        const newslettersResponse = await fetch(`${API_ENDPOINTS.NEWSLETTERS.LIST}?limit=5`, {
+          headers
+        });
+        
+        if (!newslettersResponse.ok) {
+          throw new Error('Failed to fetch newsletters data');
+        }
+        
+        const newsletters = await newslettersResponse.json();
+        setRecentNewsletters(newsletters);
+        
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user]);
+
+  if (isLoading || dataLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -32,18 +110,62 @@ export default function DashboardPage() {
     return null;
   }
 
-  const stats = [
-    { name: 'Newsletters', value: '12', icon: DocumentTextIcon, change: '+2', changeType: 'positive' },
-    { name: 'Subscribers', value: '2,341', icon: UserCircleIcon, change: '+12%', changeType: 'positive' },
-    { name: 'Open Rate', value: '68%', icon: ChartBarIcon, change: '+5%', changeType: 'positive' },
-    { name: 'Click Rate', value: '12.4%', icon: ChartBarIcon, change: '+2%', changeType: 'positive' },
+  // Create stats from real data or show defaults
+  const stats = analyticsData ? [
+    { 
+      name: 'Newsletters', 
+      value: analyticsData.total_newsletters.toString(), 
+      icon: DocumentTextIcon, 
+      change: analyticsData.growth.newsletters, 
+      changeType: 'positive' 
+    },
+    { 
+      name: 'Subscribers', 
+      value: analyticsData.total_subscribers.toLocaleString(), 
+      icon: UserCircleIcon, 
+      change: analyticsData.growth.subscribers, 
+      changeType: 'positive' 
+    },
+    { 
+      name: 'Open Rate', 
+      value: `${analyticsData.avg_open_rate.toFixed(1)}%`, 
+      icon: ChartBarIcon, 
+      change: analyticsData.growth.open_rate, 
+      changeType: 'positive' 
+    },
+    { 
+      name: 'Click Rate', 
+      value: `${analyticsData.avg_click_rate.toFixed(1)}%`, 
+      icon: ChartBarIcon, 
+      change: analyticsData.growth.click_rate, 
+      changeType: 'positive' 
+    },
+  ] : [
+    { name: 'Newsletters', value: '0', icon: DocumentTextIcon, change: '+0', changeType: 'positive' },
+    { name: 'Subscribers', value: '0', icon: UserCircleIcon, change: '+0%', changeType: 'positive' },
+    { name: 'Open Rate', value: '0%', icon: ChartBarIcon, change: '+0%', changeType: 'positive' },
+    { name: 'Click Rate', value: '0%', icon: ChartBarIcon, change: '+0%', changeType: 'positive' },
   ];
 
-  const recentNewsletters = [
-    { id: 1, title: 'Weekly Tech Roundup', status: 'sent', sentAt: '2 hours ago', openRate: '68%' },
-    { id: 2, title: 'AI Trends Report', status: 'draft', sentAt: null, openRate: null },
-    { id: 3, title: 'Startup Funding News', status: 'sent', sentAt: '1 day ago', openRate: '72%' },
-  ];
+  // Format recent newsletters from real data
+  const formatNewsletter = (newsletter: Newsletter) => {
+    const sentAt = newsletter.published_at ? 
+      new Date(newsletter.published_at).toLocaleDateString() : 
+      null;
+    const openRate = newsletter.open_rate ? 
+      `${newsletter.open_rate.toFixed(1)}%` : 
+      null;
+    
+    return {
+      id: newsletter.id,
+      title: newsletter.subject,
+      status: newsletter.status,
+      sentAt,
+      openRate
+    };
+  };
+
+  const formattedRecentNewsletters = recentNewsletters.map(formatNewsletter);
 
   return (
     <div className="min-h-screen bg-icy-gradient-soft">
@@ -232,44 +354,62 @@ export default function DashboardPage() {
                 Recent Newsletters
               </h3>
               <div className="flow-root">
-                <ul className="-my-5 divide-y divide-gray-200">
-                  {recentNewsletters.map((newsletter) => (
-                    <li key={newsletter.id} className="py-4">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex-shrink-0">
-                          <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                            <DocumentTextIcon className="h-5 w-5 text-primary-600" />
+                {error ? (
+                  <div className="text-center py-8">
+                    <p className="text-red-600 mb-4">Failed to load newsletters: {error}</p>
+                    <button 
+                      onClick={() => window.location.reload()} 
+                      className="text-primary-600 hover:text-primary-500"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                ) : formattedRecentNewsletters.length === 0 ? (
+                  <div className="text-center py-8">
+                    <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No newsletters yet</h3>
+                    <p className="mt-1 text-sm text-gray-500">Get started by creating your first newsletter.</p>
+                  </div>
+                ) : (
+                  <ul className="-my-5 divide-y divide-gray-200">
+                    {formattedRecentNewsletters.map((newsletter) => (
+                      <li key={newsletter.id} className="py-4">
+                        <div className="flex items-center space-x-4">
+                          <div className="flex-shrink-0">
+                            <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                              <DocumentTextIcon className="h-5 w-5 text-primary-600" />
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {newsletter.title}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {newsletter.status === 'published' 
+                                ? `Published ${newsletter.sentAt}` 
+                                : 'Draft'
+                              }
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {newsletter.openRate && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                {newsletter.openRate} open rate
+                              </span>
+                            )}
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              newsletter.status === 'published' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {newsletter.status}
+                            </span>
                           </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {newsletter.title}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {newsletter.status === 'sent' 
-                              ? `Sent ${newsletter.sentAt}` 
-                              : 'Draft'
-                            }
-                          </p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {newsletter.openRate && (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {newsletter.openRate} open rate
-                            </span>
-                          )}
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            newsletter.status === 'sent' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {newsletter.status}
-                          </span>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           </motion.div>

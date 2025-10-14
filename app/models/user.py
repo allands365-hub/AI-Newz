@@ -36,7 +36,8 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    preferences = relationship("UserPreferences", back_populates="user", uselist=False)
+    # preferences = relationship("UserPreferences", back_populates="user", uselist=False, lazy="select")
+    newsletters = relationship("Newsletter", back_populates="user", lazy="select")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, name={self.name})>"

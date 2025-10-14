@@ -40,7 +40,7 @@ export const API_ENDPOINTS = {
     SOURCES: `${API_BASE_URL}/api/v1/rss/sources`,
     SOURCE: (id: number) => `${API_BASE_URL}/api/v1/rss/sources/${id}`,
     FETCH: `${API_BASE_URL}/api/v1/rss/fetch`,
-    ARTICLES: `${API_BASE_URL}/api/v1/rss/articles`,
+    ARTICLES: '/api/articles', // Use Next.js API route to avoid CORS
     ARTICLE: (id: number) => `${API_BASE_URL}/api/v1/rss/articles/${id}`,
     SEARCH: `${API_BASE_URL}/api/v1/rss/articles/search`,
     STATS: `${API_BASE_URL}/api/v1/rss/stats`,
@@ -52,7 +52,7 @@ export const API_ENDPOINTS = {
   
   // Analytics endpoints
   ANALYTICS: {
-    OVERVIEW: `${API_BASE_URL}/api/v1/analytics/overview`,
+    OVERVIEW: '/api/analytics', // Use Next.js API route to avoid CORS
     RECENT_PERFORMANCE: `${API_BASE_URL}/api/v1/analytics/recent-performance`,
     TOP_CONTENT: `${API_BASE_URL}/api/v1/analytics/top-content`,
     GROWTH_TRENDS: `${API_BASE_URL}/api/v1/analytics/growth-trends`,

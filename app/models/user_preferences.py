@@ -31,7 +31,7 @@ class UserPreferences(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationship
-    user = relationship("User", back_populates="preferences")
+    # user = relationship("User", back_populates="preferences")
 
     def __repr__(self):
         return f"<UserPreferences(user_id={self.user_id})>"

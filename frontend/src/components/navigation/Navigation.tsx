@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import { 
   Home, 
   FileText, 
@@ -19,16 +20,37 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
+// Dynamically import UserInfo to prevent hydration issues
+const UserInfo = dynamic(() => import('./UserInfo'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center space-x-3">
+      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+        <div className="w-6 h-6 bg-gray-300 rounded-full"></div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="h-4 bg-gray-200 rounded w-24 mb-1"></div>
+        <div className="h-3 bg-gray-200 rounded w-32"></div>
+      </div>
+    </div>
+  )
+});
+
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isClient, setIsClient] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
 
-  // Prevent hydration issues by only rendering user info on client
+  // Prevent hydration issues by only rendering after mount
   useEffect(() => {
-    setIsClient(true);
+    setIsMounted(true);
   }, []);
+
+  // Don't render anything until mounted to prevent hydration issues
+  if (!isMounted) {
+    return null;
+  }
 
   const navigationItems = [
     {
@@ -90,6 +112,7 @@ const Navigation = () => {
     }
   };
 
+
   return (
     <>
       {/* Mobile menu button */}
@@ -127,26 +150,10 @@ const Navigation = () => {
             </button>
           </div>
 
-          {/* User info - only render on client to prevent hydration issues */}
-          {isClient && user && (
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-semibold text-sm">
-                    {user.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {user.name || 'User'}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {user.email}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* User info - dynamically imported to prevent hydration issues */}
+          <div className="p-6 border-b border-gray-200">
+            <UserInfo />
+          </div>
 
           {/* Navigation items */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">

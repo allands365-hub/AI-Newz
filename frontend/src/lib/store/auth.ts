@@ -94,6 +94,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           return;
         }
 
+        // Add a small delay to ensure proper hydration
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         // Prevent multiple simultaneous calls
         const { isInitializing } = get();
         if (isInitializing) {
