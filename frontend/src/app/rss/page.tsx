@@ -67,9 +67,12 @@ export default function RSSPage() {
     requireAuth();
   }, [requireAuth]);
 
-  // Load sources on mount; load articles if entering articles view
+  // Load sources on mount; then auto-switch to Articles and fetch
   useEffect(() => {
-    fetchSources();
+    (async () => {
+      await fetchSources();
+      setViewMode('articles');
+    })();
   }, []);
 
   useEffect(() => {
