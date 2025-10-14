@@ -133,20 +133,47 @@ export default function RSSPage() {
       }
 
       const data: EnhancedArticle[] = await response.json();
-      // Determine hasMore by page size
-      setHasMore(Array.isArray(data) && data.length === articlesLimit);
+      // Determine hasMore: keep button while backend returns any rows
+      setHasMore(Array.isArray(data) && data.length > 0);
       if (reset) {
-        setArticles(data || []);
+        // Initialize with unique by URL (case-insensitive) then by id
+        const seenUrls = new Set<string>();
+        const unique: EnhancedArticle[] = [];
+        for (const item of data || []) {
+          const urlKey = (item.url || '').toLowerCase();
+          const idKey = String(item.id ?? '');
+          const key = urlKey || idKey;
+          if (key && !seenUrls.has(key)) {
+            seenUrls.add(key);
+            unique.push(item);
+          }
+        }
+        setArticles(unique);
         setArticlesOffset(articlesLimit);
       } else {
-        // De-duplicate by id when appending
-        const existingById = new Map(articles.map(a => [a.id, a]));
-        for (const item of data || []) {
-          existingById.set(item.id, item);
+        // De-duplicate by URL (primary) and id (fallback) when appending
+        const seenKeys = new Set<string>();
+        const merged: EnhancedArticle[] = [];
+        for (const a of articles) {
+          const urlKey = (a.url || '').toLowerCase();
+          const idKey = String(a.id ?? '');
+          const key = urlKey || idKey;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            merged.push(a);
+          }
         }
-        const merged = Array.from(existingById.values());
+        for (const item of data || []) {
+          const urlKey = (item.url || '').toLowerCase();
+          const idKey = String(item.id ?? '');
+          const key = urlKey || idKey;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            merged.push(item);
+          }
+        }
         setArticles(merged);
-        setArticlesOffset(nextOffset + (Array.isArray(data) ? data.length : 0));
+        setArticlesOffset(nextOffset + articlesLimit);
       }
     } catch (err) {
       console.error('Error fetching articles:', err);
