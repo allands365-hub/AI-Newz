@@ -40,6 +40,9 @@ export default function RSSPage() {
   // Data states
   const [sources, setSources] = useState<EnhancedRSSSource[]>([]);
   const [articles, setArticles] = useState<EnhancedArticle[]>([]);
+  const [articlesLimit] = useState(20);
+  const [articlesOffset, setArticlesOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [articlesLoading, setArticlesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +80,11 @@ export default function RSSPage() {
 
   useEffect(() => {
     if (viewMode === 'articles') {
-      fetchArticles();
+      // Reset pagination when switching to articles view
+      setArticles([]);
+      setArticlesOffset(0);
+      setHasMore(true);
+      fetchArticles({ reset: true });
     }
   }, [viewMode]);
 
@@ -104,7 +111,7 @@ export default function RSSPage() {
     }
   };
 
-  const fetchArticles = async () => {
+  const fetchArticles = async ({ reset = false }: { reset?: boolean } = {}) => {
     try {
       setArticlesLoading(true);
       setError(null);
@@ -113,8 +120,9 @@ export default function RSSPage() {
       if (selectedSource) params.append('source_id', selectedSource.toString());
       // Default initial load to prefer_images=true to prioritize items with images
       if (!params.has('prefer_images')) params.append('prefer_images', 'true');
-      if (!params.has('limit')) params.append('limit', '20');
-      if (!params.has('offset')) params.append('offset', '0');
+      const nextOffset = reset ? 0 : articlesOffset;
+      params.append('limit', String(articlesLimit));
+      params.append('offset', String(nextOffset));
       
       const response = await fetch(`${API_ENDPOINTS.RSS.ARTICLES}?${params}`, {
         headers: await getAuthHeaders()
@@ -124,8 +132,22 @@ export default function RSSPage() {
         throw new Error('Failed to fetch articles');
       }
 
-      const data = await response.json();
-      setArticles(data);
+      const data: EnhancedArticle[] = await response.json();
+      // Determine hasMore by page size
+      setHasMore(Array.isArray(data) && data.length === articlesLimit);
+      if (reset) {
+        setArticles(data || []);
+        setArticlesOffset(articlesLimit);
+      } else {
+        // De-duplicate by id when appending
+        const existingById = new Map(articles.map(a => [a.id, a]));
+        for (const item of data || []) {
+          existingById.set(item.id, item);
+        }
+        const merged = Array.from(existingById.values());
+        setArticles(merged);
+        setArticlesOffset(nextOffset + (Array.isArray(data) ? data.length : 0));
+      }
     } catch (err) {
       console.error('Error fetching articles:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch articles');
@@ -269,13 +291,18 @@ export default function RSSPage() {
   };
 
   const handleLoadMore = () => {
-    // Implement pagination
-    fetchArticles();
+    if (hasMore && !articlesLoading) {
+      fetchArticles({ reset: false });
+    }
   };
 
   const handleSourceFilter = (sourceId?: number) => {
     setSelectedSource(sourceId);
-    fetchArticles();
+    // Reset pagination when filter changes
+    setArticles([]);
+    setArticlesOffset(0);
+    setHasMore(true);
+    fetchArticles({ reset: true });
   };
 
   const applyContentFilters = (filters: ContentFilter) => {
@@ -481,7 +508,7 @@ export default function RSSPage() {
               onShare={handleArticleShare}
               onEmail={handleArticleEmail}
               onLoadMore={handleLoadMore}
-              hasMore={articles.length > 0}
+              hasMore={hasMore}
               selectedSource={selectedSource}
               onSourceFilter={handleSourceFilter}
             />

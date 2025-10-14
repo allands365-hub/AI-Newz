@@ -17,7 +17,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { ArticleCardProps } from '@/types/rss';
 
 export default function ArticleCard({ article, onRead, onShare, onEmail }: ArticleCardProps) {
-  const handleRead = () => {
+  const handleRead = (e: React.MouseEvent<HTMLButtonElement>) => {
+    // Prevent any ancestor handlers from also triggering navigation
+    e.stopPropagation();
     onRead(article);
   };
 
@@ -138,7 +140,7 @@ export default function ArticleCard({ article, onRead, onShare, onEmail }: Artic
           <div className="flex items-center space-x-1">
             <Star className="w-4 h-4 text-yellow-500 fill-current" />
             <span className="text-sm font-medium text-gray-700">
-              {typeof article.quality_score === 'number' ? article.quality_score.toFixed(1) : '0.0'}
+              {Number.isFinite(Number(article.quality_score)) ? Number(article.quality_score).toFixed(1) : '0.0'}
             </span>
           </div>
         </div>
@@ -159,7 +161,17 @@ export default function ArticleCard({ article, onRead, onShare, onEmail }: Artic
         
         {article.summary && (
           <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-            {article.summary}
+            {(() => {
+              try {
+                const txt = document.createElement('textarea');
+                txt.innerHTML = article.summary;
+                const decoded = txt.value;
+                // Strip HTML tags
+                return decoded.replace(/<[^>]*>/g, ' ');
+              } catch {
+                return article.summary;
+              }
+            })()}
           </p>
         )}
         

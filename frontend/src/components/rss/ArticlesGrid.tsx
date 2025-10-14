@@ -54,7 +54,7 @@ export default function ArticlesGrid({
   const platforms = Array.from(new Set(articles.map(a => a.rss_source_platform).filter(Boolean)));
 
   const handleRead = (article: EnhancedArticle) => {
-    window.open(article.url, '_blank');
+    // Delegate opening behavior to parent onRead to avoid double window.open
     onRead(article);
   };
 
