@@ -8,6 +8,10 @@ Based on the provided images, we need to transform your RSS feeds page from a ba
 
 All phases of the RSS enhancement plan have been successfully implemented and tested. The RSS feeds page has been transformed from a basic list view to a modern, card-based interface with visual snippets, enhanced source management, and automatic image extraction.
 
+### Post-completion refinements (Oct 14, 2025)
+- Default article fetching now requests `prefer_images=true` so items with images are prioritized in the listing.
+- Fixed async auth headers in the RSS Source modal save flow by awaiting `getAuthHeaders()` to ensure authenticated REST calls.
+
 ## 📊 **Analysis of Reference Images**
 
 ### **Image 1: CreatorPulse Dashboard**

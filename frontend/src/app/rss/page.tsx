@@ -111,8 +111,8 @@ export default function RSSPage() {
       
       const params = new URLSearchParams();
       if (selectedSource) params.append('source_id', selectedSource.toString());
-      // Default initial load to prefer_images=false to avoid empty lists
-      if (!params.has('prefer_images')) params.append('prefer_images', 'false');
+      // Default initial load to prefer_images=true to prioritize items with images
+      if (!params.has('prefer_images')) params.append('prefer_images', 'true');
       if (!params.has('limit')) params.append('limit', '20');
       if (!params.has('offset')) params.append('offset', '0');
       
@@ -506,7 +506,7 @@ export default function RSSPage() {
                 {
                   method: editingSource ? 'PUT' : 'POST',
                   headers: {
-                    ...getAuthHeaders(),
+                    ...(await getAuthHeaders()),
                     'Content-Type': 'application/json'
                   },
                   body: JSON.stringify(sourceData)

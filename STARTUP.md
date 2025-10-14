@@ -1,4 +1,4 @@
-pytho# 🚀 AI-Newz Project Startup
+# 🚀 AI-Newz Project Startup
 
 ## Quick Start
 
@@ -90,6 +90,11 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 cd frontend
 npm run dev
 ```
+
+## 🔄 Recent Changes
+
+- Frontend RSS page now requests articles with `prefer_images=true` by default to prioritize entries with images.
+- Fixed async auth headers in RSS Source modal save path by awaiting `getAuthHeaders()`.
 
 ## 📝 Notes
 
