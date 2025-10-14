@@ -43,7 +43,7 @@ export default function RSSPage() {
   const [loading, setLoading] = useState(true);
   const [articlesLoading, setArticlesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSource, setSelectedSource] = useState<number | undefined>();
@@ -67,8 +67,12 @@ export default function RSSPage() {
     requireAuth();
   }, [requireAuth]);
 
+  // Load sources on mount; load articles if entering articles view
   useEffect(() => {
     fetchSources();
+  }, []);
+
+  useEffect(() => {
     if (viewMode === 'articles') {
       fetchArticles();
     }
@@ -82,11 +86,11 @@ export default function RSSPage() {
       const response = await fetch(API_ENDPOINTS.RSS.SOURCES, {
         headers: await getAuthHeaders()
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch RSS sources');
       }
-      
+
       const data = await response.json();
       setSources(data);
     } catch (err) {
@@ -104,15 +108,19 @@ export default function RSSPage() {
       
       const params = new URLSearchParams();
       if (selectedSource) params.append('source_id', selectedSource.toString());
+      // Default initial load to prefer_images=false to avoid empty lists
+      if (!params.has('prefer_images')) params.append('prefer_images', 'false');
+      if (!params.has('limit')) params.append('limit', '20');
+      if (!params.has('offset')) params.append('offset', '0');
       
       const response = await fetch(`${API_ENDPOINTS.RSS.ARTICLES}?${params}`, {
         headers: await getAuthHeaders()
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch articles');
       }
-      
+
       const data = await response.json();
       setArticles(data);
     } catch (err) {
@@ -131,11 +139,11 @@ export default function RSSPage() {
       const response = await fetch(API_ENDPOINTS.RSS.ENHANCED_SOURCES, {
         headers: await getAuthHeaders()
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch enhanced RSS sources');
       }
-      
+
       const data = await response.json();
       setSources(data);
     } catch (err) {
@@ -157,7 +165,7 @@ export default function RSSPage() {
       const response = await fetch(`${API_ENDPOINTS.RSS.ENHANCED_ARTICLES}?${params}`, {
         headers: await getAuthHeaders()
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch enhanced articles');
       }
@@ -308,7 +316,7 @@ export default function RSSPage() {
 
   return (
     <div className="min-h-screen bg-ai-gradient-soft">
-      {/* Header */}
+        {/* Header */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-primary-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -395,49 +403,49 @@ export default function RSSPage() {
                     {showEnhancedView ? 'Simple View' : 'Enhanced View'}
                   </button>
                 )}
-                
-                <button
-                  onClick={() => setShowStats(!showStats)}
+              
+              <button
+                onClick={() => setShowStats(!showStats)}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                >
+              >
                   <ChartBarIcon className="h-4 w-4 mr-2" />
-                  {showStats ? 'Hide Stats' : 'Show Stats'}
-                </button>
+                {showStats ? 'Hide Stats' : 'Show Stats'}
+              </button>
                 
-                <button
-                  onClick={() => setShowContentInsights(!showContentInsights)}
+              <button
+                onClick={() => setShowContentInsights(!showContentInsights)}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                >
+              >
                   <GlobeAltIcon className="h-4 w-4 mr-2" />
-                  {showContentInsights ? 'Hide Insights' : 'Content Insights'}
-                </button>
+                {showContentInsights ? 'Hide Insights' : 'Content Insights'}
+              </button>
               </div>
             </div>
           </div>
 
           {/* Stats */}
           {showStats && (
-            <motion.div
+          <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.5 }}
-              className="mb-8"
-            >
+            className="mb-8"
+          >
               <RSSStats sources={sources} articles={articles} />
-            </motion.div>
-          )}
+          </motion.div>
+        )}
 
           {/* Content Insights */}
-          {showContentInsights && (
-            <motion.div
+        {showContentInsights && (
+          <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
-              className="mb-8"
-            >
+            className="mb-8"
+          >
               <ContentInsights articles={articles} />
-            </motion.div>
-          )}
+          </motion.div>
+        )}
 
           {/* Content */}
           {viewMode === 'sources' ? (
@@ -478,9 +486,9 @@ export default function RSSPage() {
         </div>
       </div>
 
-      {/* Modals */}
+        {/* Modals */}
       {showSourceModal && (
-        <RSSSourceModal
+          <RSSSourceModal
           isOpen={showSourceModal}
           onClose={() => {
             setShowSourceModal(false);
