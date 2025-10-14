@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/auth';
 import { supabase } from '@/lib/supabase';
@@ -21,9 +21,13 @@ export const useAuth = () => {
     initializeAuth,
   } = useAuthStore();
 
-  // Initialize auth on mount
+  // Initialize auth on mount (only once)
+  const didInitRef = useRef(false);
   useEffect(() => {
-    initializeAuth();
+    if (!didInitRef.current) {
+      didInitRef.current = true;
+      initializeAuth();
+    }
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -93,7 +97,7 @@ export const useAuth = () => {
     );
 
     return () => subscription.unsubscribe();
-  }, [initializeAuth, setUser, setUserProfile, setError]);
+  }, []);
 
   const handleGoogleAuth = async () => {
     try {

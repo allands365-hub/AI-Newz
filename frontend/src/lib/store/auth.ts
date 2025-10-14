@@ -111,10 +111,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           // Get initial session with timeout
           console.log('Auth init: Getting session');
           const sessionPromise = supabase.auth.getSession();
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Session timeout')), 5000)
+          const timeoutPromise = new Promise(resolve => 
+            setTimeout(() => resolve({ data: { session: null }, error: null }), 5000)
           );
-          
+          // Avoid throwing on timeout; fallback to null session gracefully
           const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]) as any;
           
           if (error) {
@@ -203,6 +203,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           }
         } catch (error) {
           console.error('Auth initialization error:', error);
+          // Do not hard-lock app on init errors
           set({ error: 'Failed to initialize authentication', isInitializing: false });
         } finally {
           console.log('Auth init: Setting isLoading to false');
