@@ -240,8 +240,9 @@ class SupabaseRSSService:
                     elif f.startswith("image_url."):
                         params["image_url"] = f.split(".", 1)[1]
 
-            # Order: images first, then quality, then recency
-            params["order"] = "image_url.not.is.null.desc,quality_score.desc,published_at.desc"
+            # Order: images first (via has_images), then quality, then recency
+            # Supabase REST order format: order=column.desc,second.desc
+            params["order"] = "has_images.desc,quality_score.desc,published_at.desc"
             
             # Make request to Supabase REST API
             async with httpx.AsyncClient() as client:
