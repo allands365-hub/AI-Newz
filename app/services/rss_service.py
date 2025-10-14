@@ -699,78 +699,37 @@ class RSSService:
             if rss_images.get('image_alt_text'):
                 image_data['image_alt_text'] = rss_images['image_alt_text']
         
-        # 2. Second priority: Extract from RSS content HTML
+        # 2. Second priority: Extract from RSS content HTML with enhanced image detection
         if not image_data['image_url'] and content:
             soup = BeautifulSoup(content, 'html.parser')
             images = soup.find_all('img')
             
             if images:
-                # Get the first/largest image
-                main_image = images[0]
-                # Support lazy-loading attributes and srcset
-                image_url = (
-                    main_image.get('src') or
-                    main_image.get('data-src') or
-                    main_image.get('data-original') or
-                    main_image.get('data-lazy') or
-                    main_image.get('data-thumbnail')
-                )
-                # Handle srcset - pick the largest candidate
-                if (not image_url) and main_image.get('srcset'):
-                    try:
-                        candidates = [c.strip() for c in main_image.get('srcset').split(',')]
-                        def parse_pair(p):
-                            parts = p.split()
-                            if len(parts) == 1:
-                                return (parts[0], 0)
-                            size = parts[1]
-                            try:
-                                if size.endswith('w'):
-                                    return (parts[0], int(size[:-1]))
-                                if size.endswith('x'):
-                                    return (parts[0], int(float(size[:-1]) * 1000))
-                            except Exception:
-                                return (parts[0], 0)
-                            return (parts[0], 0)
-                        parsed = [parse_pair(p) for p in candidates]
-                        parsed.sort(key=lambda x: x[1], reverse=True)
-                        if parsed:
-                            image_url = parsed[0][0]
-                    except Exception:
-                        pass
+                # Enhanced image extraction with better lazy loading and srcset support
+                image_candidates = []
                 
-                # Handle relative URLs
-                if image_url and not image_url.startswith('http'):
-                    if image_url.startswith('//'):
-                        image_url = 'https:' + image_url
-                    elif image_url.startswith('/') and article_url:
-                        # Try to construct absolute URL using article URL
-                        from urllib.parse import urljoin
-                        image_url = urljoin(article_url, image_url)
+                for img in images:
+                    # Extract image URL with comprehensive lazy loading support
+                    image_url = self._extract_image_url_from_img_tag(img, article_url)
+                    
+                    if image_url:
+                        # Calculate image priority score
+                        score = self._calculate_image_priority(img, image_url)
+                        image_candidates.append((image_url, score, img))
                 
-                if image_url and image_url.startswith('http'):
-                    image_data['image_url'] = image_url
-                    image_data['image_alt_text'] = main_image.get('alt', '')
+                # Sort by priority score (highest first)
+                image_candidates.sort(key=lambda x: x[1], reverse=True)
                 
-                # Try to find a smaller version for thumbnail
-                if not image_data['thumbnail_url']:
-                    for img in images:
-                        src = (
-                            img.get('src') or
-                            img.get('data-src') or
-                            img.get('data-original') or
-                            img.get('data-lazy') or ''
-                        ).lower()
-                        if any(keyword in src for keyword in ['thumbnail', 'thumb', 'small', 'preview']):
-                            thumbnail_url = img.get('src')
-                            if thumbnail_url and not thumbnail_url.startswith('http'):
-                                if thumbnail_url.startswith('//'):
-                                    thumbnail_url = 'https:' + thumbnail_url
-                                elif thumbnail_url.startswith('/') and article_url:
-                                    from urllib.parse import urljoin
-                                    thumbnail_url = urljoin(article_url, thumbnail_url)
-                            if thumbnail_url and thumbnail_url.startswith('http'):
-                                image_data['thumbnail_url'] = thumbnail_url
+                if image_candidates:
+                    best_image_url, _, best_img = image_candidates[0]
+                    image_data['image_url'] = best_image_url
+                    image_data['image_alt_text'] = best_img.get('alt', '')
+                    
+                    # Try to find a thumbnail from remaining candidates
+                    if not image_data['thumbnail_url']:
+                        for img_url, score, img in image_candidates[1:]:  # Skip the main image
+                            if self._is_thumbnail_candidate(img_url, img):
+                                image_data['thumbnail_url'] = img_url
                                 break
         
         # 3. Third priority: Fetch from article URL (most expensive)
@@ -807,72 +766,85 @@ class RSSService:
                 # Parse HTML content
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # Look for common image patterns
+                # Look for common image patterns with enhanced meta tag support
                 image_candidates = []
                 
-                # 1. Look for Open Graph images
-                og_image = soup.find('meta', property='og:image')
-                if og_image and og_image.get('content'):
-                    image_candidates.append(og_image['content'])
-                    logger.info(f"✅ Found Open Graph image: {og_image['content']}")
+                # 1. Look for Open Graph images (comprehensive)
+                og_image_selectors = [
+                    {'property': 'og:image'},
+                    {'property': 'og:image:url'},
+                    {'property': 'og:image:secure_url'},
+                    {'name': 'og:image'},
+                    {'name': 'og:image:url'}
+                ]
                 
-                # 2. Look for Twitter card images
-                twitter_image = soup.find('meta', {'name': 'twitter:image'})
-                if twitter_image and twitter_image.get('content'):
-                    image_candidates.append(twitter_image['content'])
-                    logger.info(f"✅ Found Twitter card image: {twitter_image['content']}")
+                for selector in og_image_selectors:
+                    og_image = soup.find('meta', selector)
+                    if og_image and og_image.get('content'):
+                        image_url = og_image['content'].strip()
+                        if self._is_valid_image_url(image_url):
+                            image_candidates.append((image_url, 1000))  # High priority for OG images
+                            logger.info(f"✅ Found Open Graph image: {image_url}")
+                            break
                 
-                # 3. Look for images in article content (with lazy attrs/srcset)
+                # 2. Look for Twitter card images (comprehensive)
+                twitter_image_selectors = [
+                    {'name': 'twitter:image'},
+                    {'name': 'twitter:image:src'},
+                    {'property': 'twitter:image'},
+                    {'property': 'twitter:image:src'}
+                ]
+                
+                for selector in twitter_image_selectors:
+                    twitter_image = soup.find('meta', selector)
+                    if twitter_image and twitter_image.get('content'):
+                        image_url = twitter_image['content'].strip()
+                        if self._is_valid_image_url(image_url):
+                            image_candidates.append((image_url, 950))  # High priority for Twitter images
+                            logger.info(f"✅ Found Twitter card image: {image_url}")
+                            break
+                
+                # 3. Look for other meta image tags
+                meta_image_selectors = [
+                    {'name': 'image'},
+                    {'name': 'thumbnail'},
+                    {'property': 'image'},
+                    {'property': 'thumbnail'}
+                ]
+                
+                for selector in meta_image_selectors:
+                    meta_image = soup.find('meta', selector)
+                    if meta_image and meta_image.get('content'):
+                        image_url = meta_image['content'].strip()
+                        if self._is_valid_image_url(image_url):
+                            image_candidates.append((image_url, 800))  # Medium priority
+                            logger.info(f"✅ Found meta image: {image_url}")
+                            break
+                
+                # 4. Look for images in article content (with enhanced lazy loading support)
                 article_content = soup.find('article') or soup.find('main') or soup.find('div', class_=re.compile(r'content|article|post'))
                 if article_content:
                     images = article_content.find_all('img')
                     for img in images:
-                        # Prefer explicit src, then lazy attrs
-                        src = img.get('src') or img.get('data-src') or img.get('data-original') or img.get('data-lazy')
-                        if (not src) and img.get('srcset'):
-                            try:
-                                candidates = [c.strip() for c in img.get('srcset').split(',')]
-                                sizes = []
-                                for c in candidates:
-                                    parts = c.split()
-                                    url = parts[0]
-                                    score = 0
-                                    if len(parts) > 1:
-                                        s = parts[1]
-                                        try:
-                                            if s.endswith('w'):
-                                                score = int(s[:-1])
-                                            elif s.endswith('x'):
-                                                score = int(float(s[:-1]) * 1000)
-                                        except Exception:
-                                            score = 0
-                                    sizes.append((url, score))
-                                sizes.sort(key=lambda x: x[1], reverse=True)
-                                if sizes:
-                                    src = sizes[0][0]
-                            except Exception:
-                                pass
-                        if src and self._is_valid_image_url(src):
-                            # Prefer larger images
-                            width = img.get('width')
-                            height = img.get('height')
-                            if width and height:
-                                size_score = int(width) * int(height)
-                                image_candidates.append((src, size_score))
-                            else:
-                                image_candidates.append((src, 0))
+                        # Use enhanced image extraction
+                        image_url = self._extract_image_url_from_img_tag(img, article_url)
+                        if image_url and self._is_valid_image_url(image_url):
+                            # Calculate priority score
+                            score = self._calculate_image_priority(img, image_url)
+                            image_candidates.append((image_url, score))
+                            logger.info(f"✅ Found article content image: {image_url} (score: {score})")
                 
-                # 4. Look for any large images on the page
+                # 5. Look for any large images on the page (fallback)
                 all_images = soup.find_all('img')
                 for img in all_images:
-                    src = img.get('src')
-                    if src and self._is_valid_image_url(src):
-                        width = img.get('width')
-                        height = img.get('height')
-                        if width and height:
-                            size_score = int(width) * int(height)
-                            if size_score > 50000:  # Only consider reasonably large images
-                                image_candidates.append((src, size_score))
+                    # Use enhanced image extraction
+                    image_url = self._extract_image_url_from_img_tag(img, article_url)
+                    if image_url and self._is_valid_image_url(image_url):
+                        # Calculate priority score
+                        score = self._calculate_image_priority(img, image_url)
+                        if score > 0:  # Only consider images with positive scores
+                            image_candidates.append((image_url, score))
+                            logger.info(f"✅ Found fallback image: {image_url} (score: {score})")
                 
                 # Return the best candidate
                 if image_candidates:
@@ -890,13 +862,182 @@ class RSSService:
         
         return None
     
+    def _extract_image_url_from_img_tag(self, img_tag, article_url: str = None) -> str:
+        """Extract the best image URL from an img tag with comprehensive lazy loading support"""
+        # Priority order for image sources
+        image_attrs = [
+            'src',           # Standard src
+            'data-src',      # Lazy loading
+            'data-original', # Lazy loading
+            'data-lazy',     # Lazy loading
+            'data-thumbnail', # Thumbnail
+            'data-srcset',   # Lazy srcset
+            'data-lazy-src', # Alternative lazy loading
+            'data-defer-src' # Deferred loading
+        ]
+        
+        image_url = None
+        
+        # Try each attribute in priority order
+        for attr in image_attrs:
+            if img_tag.get(attr):
+                if attr == 'data-srcset':
+                    # Handle lazy srcset
+                    image_url = self._parse_srcset(img_tag.get(attr))
+                else:
+                    image_url = img_tag.get(attr)
+                break
+        
+        # If no direct attribute found, try srcset
+        if not image_url and img_tag.get('srcset'):
+            image_url = self._parse_srcset(img_tag.get('srcset'))
+        
+        # Handle relative URLs
+        if image_url and not image_url.startswith('http'):
+            image_url = self._resolve_relative_url(image_url, article_url)
+        
+        return image_url if image_url and image_url.startswith('http') else None
+    
+    def _parse_srcset(self, srcset: str) -> str:
+        """Parse srcset and return the largest image URL"""
+        if not srcset:
+            return None
+        
+        try:
+            candidates = [c.strip() for c in srcset.split(',')]
+            parsed_candidates = []
+            
+            for candidate in candidates:
+                parts = candidate.split()
+                if not parts:
+                    continue
+                
+                url = parts[0]
+                size = 0
+                
+                if len(parts) > 1:
+                    size_str = parts[1]
+                    try:
+                        if size_str.endswith('w'):
+                            size = int(size_str[:-1])
+                        elif size_str.endswith('x'):
+                            size = int(float(size_str[:-1]) * 1000)
+                    except (ValueError, IndexError):
+                        size = 0
+                
+                parsed_candidates.append((url, size))
+            
+            # Sort by size (largest first) and return the best URL
+            parsed_candidates.sort(key=lambda x: x[1], reverse=True)
+            return parsed_candidates[0][0] if parsed_candidates else None
+            
+        except Exception:
+            return None
+    
+    def _resolve_relative_url(self, url: str, article_url: str = None) -> str:
+        """Resolve relative URLs to absolute URLs"""
+        if not url:
+            return None
+        
+        if url.startswith('//'):
+            return 'https:' + url
+        elif url.startswith('/') and article_url:
+            from urllib.parse import urljoin
+            return urljoin(article_url, url)
+        elif not url.startswith('http'):
+            # Handle protocol-relative URLs
+            if article_url:
+                from urllib.parse import urljoin
+                return urljoin(article_url, url)
+        
+        return url
+    
+    def _calculate_image_priority(self, img_tag, image_url: str) -> int:
+        """Calculate priority score for an image based on various factors"""
+        score = 0
+        
+        # Base score
+        score += 100
+        
+        # Size-based scoring
+        width = img_tag.get('width')
+        height = img_tag.get('height')
+        if width and height:
+            try:
+                size = int(width) * int(height)
+                score += min(size // 1000, 500)  # Cap at 500 points for size
+            except (ValueError, TypeError):
+                pass
+        
+        # Class-based scoring (prefer main content images)
+        class_attr = img_tag.get('class', [])
+        if isinstance(class_attr, list):
+            class_attr = ' '.join(class_attr)
+        
+        class_lower = class_attr.lower()
+        if any(keyword in class_lower for keyword in ['main', 'hero', 'featured', 'primary', 'content']):
+            score += 200
+        elif any(keyword in class_lower for keyword in ['thumbnail', 'thumb', 'small', 'preview']):
+            score -= 100
+        
+        # Alt text scoring (prefer images with descriptive alt text)
+        alt_text = img_tag.get('alt', '')
+        if alt_text and len(alt_text) > 10:
+            score += 50
+        
+        # URL-based scoring (prefer certain domains)
+        url_lower = image_url.lower()
+        if any(domain in url_lower for domain in ['cdn', 'static', 'assets', 'media']):
+            score += 100
+        
+        # Penalize very small images
+        if width and height:
+            try:
+                if int(width) < 200 or int(height) < 200:
+                    score -= 200
+            except (ValueError, TypeError):
+                pass
+        
+        return score
+    
+    def _is_thumbnail_candidate(self, image_url: str, img_tag) -> bool:
+        """Check if an image is a good thumbnail candidate"""
+        if not image_url:
+            return False
+        
+        # Check URL for thumbnail indicators
+        url_lower = image_url.lower()
+        if any(keyword in url_lower for keyword in ['thumbnail', 'thumb', 'small', 'preview', 'mini']):
+            return True
+        
+        # Check class attributes
+        class_attr = img_tag.get('class', [])
+        if isinstance(class_attr, list):
+            class_attr = ' '.join(class_attr)
+        
+        class_lower = class_attr.lower()
+        if any(keyword in class_lower for keyword in ['thumbnail', 'thumb', 'small', 'preview']):
+            return True
+        
+        # Check size attributes
+        width = img_tag.get('width')
+        height = img_tag.get('height')
+        if width and height:
+            try:
+                if int(width) <= 300 and int(height) <= 300:
+                    return True
+            except (ValueError, TypeError):
+                pass
+        
+        return False
+
     def _is_valid_image_url(self, url: str) -> bool:
         """Check if URL is a valid image"""
         if not url or not url.startswith('http'):
             return False
         
         # Check for common image extensions
-        image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+        image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.avif', '.bmp', '.tiff']
         url_lower = url.lower()
         
         # Check extension
@@ -904,8 +1045,12 @@ class RSSService:
             return True
         
         # Check for common image hosting patterns
-        image_patterns = ['imgur', 'flickr', 'unsplash', 'pexels', 'pixabay']
+        image_patterns = ['imgur', 'flickr', 'unsplash', 'pexels', 'pixabay', 'cloudinary', 'amazonaws', 'googleusercontent']
         if any(pattern in url_lower for pattern in image_patterns):
+            return True
+        
+        # Check for data URLs (base64 images)
+        if url.startswith('data:image/'):
             return True
         
         return False

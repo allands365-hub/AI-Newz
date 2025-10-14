@@ -40,7 +40,7 @@ export default function RSSPage() {
   // Data states
   const [sources, setSources] = useState<EnhancedRSSSource[]>([]);
   const [articles, setArticles] = useState<EnhancedArticle[]>([]);
-  const [articlesLimit] = useState(20);
+  const [articlesLimit] = useState(50); // Increased to show more articles initially
   const [articlesOffset, setArticlesOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -87,6 +87,14 @@ export default function RSSPage() {
       fetchArticles({ reset: true });
     }
   }, [viewMode]);
+
+  // Auto-load more articles if we have less than 10 and more are available
+  useEffect(() => {
+    if (viewMode === 'articles' && articles.length > 0 && articles.length < 10 && hasMore && !articlesLoading) {
+      // If we have less than 10 articles and there are more available, load more
+      fetchArticles({ reset: false });
+    }
+  }, [viewMode, articles.length, hasMore, articlesLoading]);
 
   const fetchSources = async () => {
     try {
@@ -137,43 +145,65 @@ export default function RSSPage() {
       const data: EnhancedArticle[] = await response.json();
       // Determine hasMore: keep button while backend returns any rows
       setHasMore(Array.isArray(data) && data.length > 0);
-      if (reset) {
-        // Initialize with unique by URL (case-insensitive) then by id
-        const seenUrls = new Set<string>();
+      // Enhanced de-duplication function
+      const deduplicateArticles = (articles: EnhancedArticle[]) => {
+        const seen = new Set<string>();
         const unique: EnhancedArticle[] = [];
-        for (const item of data || []) {
+        
+        for (const item of articles) {
+          // Create multiple keys for better de-duplication
           const urlKey = (item.url || '').toLowerCase();
           const idKey = String(item.id ?? '');
-          const key = urlKey || idKey;
-          if (key && !seenUrls.has(key)) {
-            seenUrls.add(key);
+          const titleKey = (item.title || '').toLowerCase().trim();
+          
+          // For "The Download" articles, use a more specific key
+          let primaryKey = urlKey || idKey;
+          if (titleKey.includes('the download:')) {
+            // Extract the main topic from "The Download: topic1, and topic2"
+            const mainTopic = titleKey.replace('the download:', '').split(',')[0].trim();
+            primaryKey = `download_${mainTopic}`;
+          }
+          
+          if (primaryKey && !seen.has(primaryKey)) {
+            seen.add(primaryKey);
             unique.push(item);
           }
         }
+        
+        return unique;
+      };
+
+      if (reset) {
+        // Initialize with enhanced de-duplication
+        const unique = deduplicateArticles(data || []);
         setArticles(unique);
         setArticlesOffset(articlesLimit);
       } else {
-        // De-duplicate by URL (primary) and id (fallback) when appending
-        const seenKeys = new Set<string>();
+        // De-duplicate when appending
+        const existing = deduplicateArticles(articles);
+        const newItems = deduplicateArticles(data || []);
+        
+        // Merge existing and new, avoiding duplicates
+        const seen = new Set<string>();
         const merged: EnhancedArticle[] = [];
-        for (const a of articles) {
-          const urlKey = (a.url || '').toLowerCase();
-          const idKey = String(a.id ?? '');
-          const key = urlKey || idKey;
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            merged.push(a);
-          }
-        }
-        for (const item of data || []) {
+        
+        for (const item of [...existing, ...newItems]) {
           const urlKey = (item.url || '').toLowerCase();
           const idKey = String(item.id ?? '');
-          const key = urlKey || idKey;
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
+          const titleKey = (item.title || '').toLowerCase().trim();
+          
+          let primaryKey = urlKey || idKey;
+          if (titleKey.includes('the download:')) {
+            const mainTopic = titleKey.replace('the download:', '').split(',')[0].trim();
+            primaryKey = `download_${mainTopic}`;
+          }
+          
+          if (primaryKey && !seen.has(primaryKey)) {
+            seen.add(primaryKey);
             merged.push(item);
           }
         }
+        
         setArticles(merged);
         setArticlesOffset(nextOffset + articlesLimit);
       }

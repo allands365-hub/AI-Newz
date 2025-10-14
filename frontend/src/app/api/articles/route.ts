@@ -14,6 +14,10 @@ export async function GET(request: NextRequest) {
     // Get the authorization header from the request
     const authHeader = request.headers.get('authorization');
     
+    // Debug logging
+    console.log('Articles API Route - Auth header:', authHeader ? `${authHeader.substring(0, 20)}...` : 'No auth header');
+    console.log('Articles API Route - Backend URL:', backendUrl);
+    
     // Forward the request to the backend
     const response = await fetch(backendUrl, {
       method: 'GET',

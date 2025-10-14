@@ -221,9 +221,8 @@ class SupabaseRSSService:
             if exclude_used:
                 filters.append("is_used_in_newsletter.eq.false")
 
-            if prefer_images:
-                # Prefer only articles flagged with images
-                filters.append("has_images.eq.true")
+            # Note: We don't filter by has_images when prefer_images=true
+            # Instead, we just sort by has_images first to prioritize articles with images
             
             # Add filters to params
             if filters:
@@ -255,8 +254,40 @@ class SupabaseRSSService:
                 response.raise_for_status()
                 articles = response.json()
                 
-                logger.info(f"Retrieved {len(articles)} articles for user {user_id}")
-                return articles
+                # Limit articles per source for variety, but allow more when limit is high
+                # Calculate articles per source based on total limit
+                articles_per_source = max(1, limit // 6) if limit > 6 else 1  # At least 1 per source, more if limit is high
+                
+                # Group articles by rss_source_name and take the best ones from each
+                source_articles = {}
+                for article in articles:
+                    source_name = article.get('rss_source_name', 'unknown')
+                    if source_name not in source_articles:
+                        source_articles[source_name] = [article]
+                    else:
+                        source_articles[source_name].append(article)
+                
+                # Sort each source's articles and take the best ones
+                diverse_articles = []
+                for source_name, source_article_list in source_articles.items():
+                    # Sort by quality score (desc) then recency (desc)
+                    source_article_list.sort(key=lambda x: (
+                        -(x.get('quality_score', 0)),
+                        x.get('published_at', '')
+                    ), reverse=True)
+                    
+                    # Take the best articles from this source
+                    diverse_articles.extend(source_article_list[:articles_per_source])
+                
+                # Re-sort the final diverse articles by the original criteria: images first, then quality, then recency
+                diverse_articles.sort(key=lambda x: (
+                    -1 if x.get('has_images') else 0,  # Images first
+                    -(x.get('quality_score', 0)),      # Higher quality first
+                    x.get('published_at', '')          # More recent first
+                ), reverse=True)
+                
+                logger.info(f"Retrieved {len(articles)} articles, filtered to {len(diverse_articles)} unique sources for user {user_id}")
+                return diverse_articles
                 
         except Exception as e:
             logger.error(f"Error getting articles for user via REST API: {e}")
