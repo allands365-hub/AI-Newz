@@ -86,6 +86,7 @@ export interface ArticlesGridProps {
   hasMore: boolean;
   selectedSource?: number;
   onSourceFilter: (sourceId?: number) => void;
+  onRefresh: () => void;
 }
 
 export interface EnhancedRSSSourceListProps {

@@ -61,8 +61,8 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
   };
 
   const handleGenerate = async () => {
-    if (!formData.topic.trim()) {
-      setError('Please enter a topic for your newsletter');
+    if (!formData.topic.trim() && !formData.useRss) {
+      setError('Please enter a topic for your newsletter or enable RSS feeds');
       return;
     }
 
@@ -276,6 +276,27 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
     setIsEditing(false);
   };
 
+  // Helper function to clean and parse content
+  const cleanContent = (content: string): string => {
+    if (!content) return '';
+    
+    // Remove JSON code blocks if present
+    let cleaned = content.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    
+    // Try to parse as JSON if it looks like JSON
+    if (cleaned.trim().startsWith('{') && cleaned.trim().endsWith('}')) {
+      try {
+        const parsed = JSON.parse(cleaned);
+        return parsed.content || parsed.opening || parsed;
+      } catch (e) {
+        // If JSON parsing fails, return the cleaned content
+        return cleaned;
+      }
+    }
+    
+    return cleaned;
+  };
+
   // If editing mode, show the editor
   if (isEditing && generatedNewsletter) {
     const newsletterForEditor = {
@@ -309,26 +330,18 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-xl shadow-lg border border-primary-200"
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-br from-primary-100 to-accent-100 rounded-lg">
-              <SparklesIcon className="h-6 w-6 text-primary-600" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">AI Newsletter Generator</h2>
-              <p className="text-sm text-gray-600">Create engaging newsletters with AI-powered content</p>
-            </div>
-          </div>
-        </div>
-
         <div className="p-6">
           {!generatedNewsletter ? (
             <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Your Newsletter</h2>
+                <p className="text-gray-600">Generate AI-powered newsletters with RSS feeds</p>
+              </div>
+
               {/* Topic Input */}
               <div>
                 <label htmlFor="topic" className="block text-sm font-medium text-gray-700 mb-2">
-                  Newsletter Topic *
+                  Newsletter Topic {!formData.useRss ? '*' : '(Optional - AI will generate based on RSS articles)'}
                 </label>
                 <input
                   type="text"
@@ -336,26 +349,37 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                   name="topic"
                   value={formData.topic}
                   onChange={handleInputChange}
-                  placeholder="e.g., AI Trends, Tech News, Startup Updates..."
+                  placeholder={formData.useRss ? "e.g., AI Trends (optional - AI will create a better topic from RSS articles)" : "e.g., AI Trends, Tech News, Startup Updates..."}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                 />
+                {formData.useRss && (
+                  <p className="mt-1 text-sm text-blue-600">
+                    ✨ When RSS is enabled, AI will analyze the articles and generate a more specific, engaging topic
+                  </p>
+                )}
+              </div>
+
+              {/* RSS Toggle */}
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="useRss"
+                  name="useRss"
+                  checked={formData.useRss}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                />
+                <label htmlFor="useRss" className="text-sm font-medium text-gray-700">
+                  Use RSS feeds for content
+                </label>
               </div>
 
               {/* Style Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Writing Style
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Writing Style</label>
+                <div className="grid grid-cols-2 gap-3">
                   {styles.map((style) => (
-                    <label
-                      key={style.value}
-                      className={`relative flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
-                        formData.style === style.value
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-300 hover:border-gray-400'
-                      }`}
-                    >
+                    <label key={style.value} className="relative">
                       <input
                         type="radio"
                         name="style"
@@ -364,13 +388,14 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                         onChange={handleInputChange}
                         className="sr-only"
                       />
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">{style.label}</div>
-                        <div className="text-sm text-gray-600 mt-1">{style.description}</div>
+                      <div className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        formData.style === style.value
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}>
+                        <div className="font-medium text-sm">{style.label}</div>
+                        <div className="text-xs text-gray-500 mt-1">{style.description}</div>
                       </div>
-                      {formData.style === style.value && (
-                        <CheckCircleIcon className="h-5 w-5 text-primary-600 ml-2" />
-                      )}
                     </label>
                   ))}
                 </div>
@@ -378,19 +403,10 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
 
               {/* Length Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Newsletter Length
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Newsletter Length</label>
+                <div className="grid grid-cols-3 gap-3">
                   {lengths.map((length) => (
-                    <label
-                      key={length.value}
-                      className={`relative flex items-start p-4 border rounded-lg cursor-pointer transition-colors ${
-                        formData.length === length.value
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-300 hover:border-gray-400'
-                      }`}
-                    >
+                    <label key={length.value} className="relative">
                       <input
                         type="radio"
                         name="length"
@@ -399,22 +415,23 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                         onChange={handleInputChange}
                         className="sr-only"
                       />
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">{length.label}</div>
-                        <div className="text-sm text-gray-600 mt-1">{length.description}</div>
-                        <div className="text-xs text-gray-500 mt-1">{length.time}</div>
+                      <div className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        formData.length === length.value
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}>
+                        <div className="font-medium text-sm">{length.label}</div>
+                        <div className="text-xs text-gray-500 mt-1">{length.description}</div>
+                        <div className="text-xs text-primary-600 mt-1">{length.time}</div>
                       </div>
-                      {formData.length === length.value && (
-                        <CheckCircleIcon className="h-5 w-5 text-primary-600 ml-2" />
-                      )}
                     </label>
                   ))}
                 </div>
               </div>
 
-              {/* Options */}
-              <div className="space-y-4">
-                <div className="flex items-center">
+              {/* Additional Options */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
                   <input
                     type="checkbox"
                     id="includeTrends"
@@ -423,12 +440,11 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                     onChange={handleInputChange}
                     className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="includeTrends" className="ml-2 text-sm text-gray-700">
-                    Include trending topics and insights
+                  <label htmlFor="includeTrends" className="text-sm font-medium text-gray-700">
+                    Include trending topics
                   </label>
                 </div>
-
-                <div className="flex items-center">
+                <div className="flex items-center space-x-3">
                   <input
                     type="checkbox"
                     id="includeSummaries"
@@ -437,266 +453,162 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                     onChange={handleInputChange}
                     className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="includeSummaries" className="ml-2 text-sm text-gray-700">
+                  <label htmlFor="includeSummaries" className="text-sm font-medium text-gray-700">
                     Include article summaries
                   </label>
                 </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="useRss"
-                    name="useRss"
-                    checked={formData.useRss}
-                    onChange={handleInputChange}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="useRss" className="ml-2 text-sm text-gray-700">
-                    Include RSS feeds and articles (recommended for better titles)
-                  </label>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="saveNewsletter"
-                    name="saveNewsletter"
-                    checked={formData.saveNewsletter}
-                    onChange={handleInputChange}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="saveNewsletter" className="ml-2 text-sm text-gray-700">
-                    Auto-save newsletter to drafts (optional)
-                  </label>
-                </div>
               </div>
-
-              {/* Error Message */}
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm"
-                >
-                  {error}
-                </motion.div>
-              )}
-
-              {/* Success Message */}
-              {publishSuccess && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-lg text-sm"
-                >
-                  {publishSuccess}
-                </motion.div>
-              )}
-
-              {/* Save Draft Success Message */}
-              {saveDraftSuccess && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-blue-50 border border-blue-200 text-blue-600 px-4 py-3 rounded-lg text-sm"
-                >
-                  {saveDraftSuccess}
-                </motion.div>
-              )}
 
               {/* Generate Button */}
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleGenerate}
-                disabled={isGenerating || !formData.topic.trim()}
-                className="w-full bg-gradient-to-r from-primary-600 to-accent-600 text-white py-3 px-6 rounded-lg font-medium hover:from-primary-700 hover:to-accent-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-2"
+                disabled={isGenerating || (!formData.topic.trim() && !formData.useRss)}
+                className="w-full bg-gradient-to-r from-primary-600 to-accent-600 text-white py-3 px-6 rounded-lg font-medium hover:from-primary-700 hover:to-accent-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
               >
                 {isGenerating ? (
                   <>
-                    <ArrowPathIcon className="h-5 w-5 animate-spin" />
-                    <span>Generating Newsletter...</span>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                    Generating Newsletter...
                   </>
                 ) : (
                   <>
-                    <SparklesIcon className="h-5 w-5" />
-                    <span>Generate Newsletter</span>
+                    <SparklesIcon className="h-5 w-5 mr-2" />
+                    Generate Newsletter
                   </>
                 )}
               </motion.button>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-red-800 text-sm">{error}</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Success Message */}
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-lg text-sm flex items-center space-x-2"
-              >
-                <CheckCircleIcon className="h-5 w-5" />
-                <span>Newsletter generated successfully!</span>
-              </motion.div>
-
-              {/* Generated Newsletter Preview */}
-              <div className="border border-gray-200 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
+              {/* Newsletter Header */}
+              <div className="flex items-center justify-between">
+                <div>
                   <h3 className="text-lg font-semibold text-gray-900">Generated Newsletter</h3>
-                  <div className="flex items-center space-x-4">
-                    {generatedNewsletter.newsletter.status === 'published' && (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        <CheckCircleIcon className="h-3 w-3 mr-1" />
-                        Published
-                      </span>
-                    )}
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <div className="flex items-center space-x-1">
-                        <ClockIcon className="h-4 w-4" />
-                        <span>{generatedNewsletter.newsletter.estimated_read_time}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <TagIcon className="h-4 w-4" />
-                        <span>{generatedNewsletter.newsletter.tags?.length || 0} tags</span>
-                      </div>
-                    </div>
+                  {generatedNewsletter.newsletter.topic && generatedNewsletter.newsletter.topic !== formData.topic && (
+                    <p className="text-sm text-blue-600 mt-1">
+                      ✨ AI-generated topic: <span className="font-medium">{generatedNewsletter.newsletter.topic}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                  <div className="flex items-center space-x-1">
+                    <ClockIcon className="h-4 w-4" />
+                    <span>{generatedNewsletter.newsletter.estimated_read_time}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <TagIcon className="h-4 w-4" />
+                    <span>{generatedNewsletter.newsletter.tags?.length || 0} tags</span>
                   </div>
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Subject Line</h4>
-                    <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
-                      {generatedNewsletter.newsletter.subject}
-                    </p>
-                  </div>
+              {/* Newsletter Preview */}
+              <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200">
+                <div className="max-w-2xl mx-auto">
+                  {/* Email Header */}
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-accent-500 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold text-lg">A</span>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">AI-Newz Newsletter</h4>
+                        <p className="text-sm text-gray-500">ai-newz@example.com</p>
+                      </div>
+                    </div>
+                    
+                    {/* Subject Line */}
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">Subject: {generatedNewsletter.newsletter.subject}</h3>
+                      {generatedNewsletter.newsletter.topic && generatedNewsletter.newsletter.topic !== formData.topic && (
+                        <p className="text-sm text-blue-600">
+                          📝 Topic: {generatedNewsletter.newsletter.topic}
+                        </p>
+                      )}
+                    </div>
 
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Opening</h4>
-                    <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
-                      {generatedNewsletter.newsletter.opening}
-                    </p>
-                  </div>
+                    {/* Newsletter Content Preview */}
+                    <div className="space-y-4">
+                      {/* Opening */}
+                      <div className="prose prose-sm max-w-none">
+                        <p className="text-gray-700 leading-relaxed">
+                          {cleanContent(generatedNewsletter.newsletter.opening)}
+                        </p>
+                      </div>
 
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Sections</h4>
-                    <div className="space-y-3">
+                      {/* All Sections - Full Content */}
                       {generatedNewsletter.newsletter.sections?.map((section: any, index: number) => (
-                        <div key={index} className="border border-gray-200 rounded-lg p-4">
-                          <h5 className="font-medium text-gray-900 mb-2">{section.title}</h5>
-                          <p className="text-gray-700 text-sm">{section.content}</p>
-                          <span className="inline-block mt-2 px-2 py-1 bg-primary-100 text-primary-600 text-xs rounded-full">
+                        <div key={index} className="border-l-4 border-primary-200 pl-4">
+                          <h4 className="font-semibold text-gray-900 mb-2">{section.title}</h4>
+                          <div className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none">
+                            <p>{cleanContent(section.content)}</p>
+                          </div>
+                          <span className="inline-block mt-2 px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
                             {section.type}
                           </span>
                         </div>
                       ))}
-                    </div>
-                  </div>
 
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Call to Action</h4>
-                    <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
-                      {generatedNewsletter.newsletter.call_to_action}
-                    </p>
-                  </div>
+                      {/* Call to Action */}
+                      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+                        <h4 className="font-semibold text-primary-900 mb-2">Call to Action</h4>
+                        <p className="text-primary-700 text-sm">
+                          {cleanContent(generatedNewsletter.newsletter.call_to_action)}
+                        </p>
+                      </div>
 
-                  {Array.isArray(generatedNewsletter.included_articles) && generatedNewsletter.included_articles.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">Sources used ({generatedNewsletter.included_articles.length})</h4>
-                      <div className="space-y-2">
-                        {generatedNewsletter.included_articles.map((a: any, i: number) => {
-                          const host = (() => { try { return a.url ? new URL(a.url).hostname.replace('www.','') : ''; } catch { return ''; } })();
-                          const source = a.rss_source_name || host;
-                          return (
-                            <div key={i} className="flex items-start justify-between gap-3 border border-gray-100 rounded-md p-2">
-                              <div className="min-w-0">
-                                <div className="text-sm font-medium text-gray-900 truncate">{source || 'Source'}</div>
-                                <a href={a.url} target="_blank" rel="noreferrer" className="text-sm text-primary-600 hover:underline truncate block">
-                                  {a.title || a.url}
-                                </a>
-                                {Array.isArray(a.tags) && a.tags.length > 0 && (
-                                  <div className="mt-1 flex flex-wrap gap-1">
-                                    {a.tags.slice(0,3).map((t: string, idx: number) => (
-                                      <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">{t}</span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="text-xs text-gray-500 shrink-0">link</div>
-                            </div>
-                          );
-                        })}
+                      {/* Footer */}
+                      <div className="border-t border-gray-200 pt-4 text-center">
+                        <p className="text-xs text-gray-500">
+                          Estimated read time: {generatedNewsletter.newsletter.estimated_read_time} • 
+                          Tags: {generatedNewsletter.newsletter.tags?.join(', ') || 'None'}
+                        </p>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
 
-              {/* Send-ready Article Cards Preview */}
-              {Array.isArray(generatedNewsletter.included_articles) && generatedNewsletter.included_articles.length > 0 && (
-                <div className="mt-6 border border-gray-200 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Send-ready Preview</h3>
-                  <div className="space-y-8">
-                    {generatedNewsletter.included_articles.map((a: any, idx: number) => {
-                      const host = (() => { try { return a.url ? new URL(a.url).hostname.replace('www.','') : ''; } catch { return ''; } })();
-                      const source = a.rss_source_name || host || 'Source';
-                      const dateLabel = a.published_at ? new Date(a.published_at).toLocaleDateString() : '';
-                      const summary = (() => {
-                        const raw = a.summary || '';
-                        // Decode & strip HTML for clean preview
-                        try {
-                          const txt = document.createElement('textarea');
-                          txt.innerHTML = raw;
-                          const unescaped = txt.value;
-                          const div = document.createElement('div');
-                          div.innerHTML = unescaped;
-                          return (div.textContent || div.innerText || '').trim();
-                        } catch {
-                          return raw;
-                        }
-                      })();
-                      return (
-                        <div key={idx} className="border border-gray-100 rounded-xl p-5 bg-white shadow-sm">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="inline-flex items-center text-xs font-medium text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full">
-                              Article {idx + 1} of {generatedNewsletter.included_articles.length}
-                            </span>
-                          </div>
-                          <h4 className="text-xl font-semibold text-gray-900 mb-2">{a.title || a.url}</h4>
-                          <div className="flex items-center space-x-3 text-sm text-gray-500 mb-4">
-                            <span className="font-medium text-primary-700">{source}</span>
-                            {dateLabel && <span>• {dateLabel}</span>}
-                          </div>
-
-                          {summary && (
-                            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 mb-4">
-                              <div className="font-semibold text-gray-900 mb-1">📝 AI Summary</div>
-                              <p className="text-gray-700 text-sm leading-6">{summary}</p>
+              {/* Sources Used Section */}
+              <div className="space-y-4">
+                {Array.isArray(generatedNewsletter.included_articles) && generatedNewsletter.included_articles.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Sources used ({generatedNewsletter.included_articles.length})</h4>
+                    <div className="space-y-2">
+                      {generatedNewsletter.included_articles.map((a: any, i: number) => {
+                        const host = (() => { try { return a.url ? new URL(a.url).hostname.replace('www.','') : ''; } catch { return ''; } })();
+                        const source = a.rss_source_name || host;
+                        return (
+                          <div key={i} className="flex items-start justify-between gap-3 border border-gray-100 rounded-md p-2">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-gray-900 truncate">{source || 'Source'}</div>
+                              <a href={a.url} target="_blank" rel="noreferrer" className="text-sm text-primary-600 hover:underline truncate block">
+                                {a.title || a.url}
+                              </a>
+                              {Array.isArray(a.tags) && a.tags.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {a.tags.slice(0,3).map((t: string, idx: number) => (
+                                    <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">{t}</span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          )}
-
-                          {/* Optional full summary – if available in sections in future we can show it */}
-                          {summary && (
-                            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                              <div className="font-semibold text-gray-900 mb-1">📖 Full Summary</div>
-                              <p className="text-gray-700 text-sm leading-6">{summary}</p>
-                            </div>
-                          )}
-
-                          <div className="mt-5">
-                            <a
-                              href={a.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center justify-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors"
-                            >
-                              Read Full Article →
-                            </a>
+                            <div className="text-xs text-gray-500 shrink-0">link</div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Action Buttons */}
               <div className="flex space-x-3">
@@ -707,14 +619,6 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                   className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
                 >
                   Generate Another
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleEditNewsletter}
-                  className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-700 transition-colors"
-                >
-                  Edit Newsletter
                 </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.02 }}
@@ -755,6 +659,25 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                   )}
                 </motion.button>
               </div>
+
+              {/* Success Messages */}
+              {publishSuccess && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-green-800 text-sm">{publishSuccess}</p>
+                </div>
+              )}
+
+              {saveDraftSuccess && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-blue-800 text-sm">{saveDraftSuccess}</p>
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-red-800 text-sm">{error}</p>
+                </div>
+              )}
             </div>
           )}
         </div>

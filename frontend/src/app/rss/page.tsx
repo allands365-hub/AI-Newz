@@ -327,6 +327,35 @@ export default function RSSPage() {
     }
   };
 
+  const handleRefreshArticles = async () => {
+    try {
+      setArticlesLoading(true);
+      setError(null);
+      
+      // Call the RSS fetch endpoint to get fresh articles
+      const response = await fetch(API_ENDPOINTS.RSS.FETCH, {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({})
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh articles');
+      }
+      
+      const result = await response.json();
+      console.log('RSS fetch result:', result);
+      
+      // Refresh articles after successful fetch
+      await fetchArticles();
+    } catch (err) {
+      console.error('Error refreshing articles:', err);
+      setError(err instanceof Error ? err.message : 'Failed to refresh articles');
+    } finally {
+      setArticlesLoading(false);
+    }
+  };
+
   const handleArticleRead = (article: EnhancedArticle) => {
     window.open(article.url, '_blank');
   };
@@ -570,6 +599,7 @@ export default function RSSPage() {
               hasMore={hasMore}
               selectedSource={selectedSource}
               onSourceFilter={handleSourceFilter}
+              onRefresh={handleRefreshArticles}
             />
           )}
         </div>

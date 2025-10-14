@@ -22,7 +22,8 @@ export default function ArticlesGrid({
   onLoadMore, 
   hasMore,
   selectedSource,
-  onSourceFilter 
+  onSourceFilter,
+  onRefresh
 }: ArticlesGridProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,7 +133,7 @@ export default function ArticlesGrid({
 
             {/* Refresh */}
             <button
-              onClick={() => window.location.reload()}
+              onClick={onRefresh}
               className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
               title="Refresh articles"
             >
