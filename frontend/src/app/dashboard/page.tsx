@@ -44,7 +44,7 @@ export default function DashboardPage() {
   const { user, handleLogout, requireAuth, isLoading } = useAuth();
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [recentNewsletters, setRecentNewsletters] = useState<Newsletter[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Require authentication
@@ -55,14 +55,17 @@ export default function DashboardPage() {
   // Fetch dashboard data
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!user) return;
+      if (!user) {
+        setDataLoading(false);
+        return;
+      }
       
       try {
         setDataLoading(true);
         setError(null);
-        
-        const headers = await getAuthHeaders();
-        
+      
+      const headers = await getAuthHeaders();
+      
         // Fetch analytics data
         const analyticsResponse = await fetch(API_ENDPOINTS.ANALYTICS.OVERVIEW, {
           headers
@@ -167,7 +170,7 @@ export default function DashboardPage() {
 
   const formattedRecentNewsletters = recentNewsletters.map(formatNewsletter);
 
-  return (
+    return (
     <div className="min-h-screen bg-icy-gradient-soft">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
@@ -176,8 +179,8 @@ export default function DashboardPage() {
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <h1 className="text-2xl font-bold text-gray-900">AI-Newz</h1>
-              </div>
-            </div>
+        </div>
+      </div>
             <div className="flex items-center space-x-4">
               <button className="p-2 text-gray-400 hover:text-gray-500">
                 <BellIcon className="h-6 w-6" />
@@ -200,48 +203,48 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-gray-900">{user.name}</p>
                   <p className="text-xs text-gray-500">{user.email}</p>
                 </div>
-                <button
+          <button 
                   onClick={handleLogout}
                   className="p-2 text-gray-400 hover:text-gray-500"
                   title="Logout"
-                >
+          >
                   <ArrowRightOnRectangleIcon className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
+          </button>
+        </div>
+      </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          {/* Welcome Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
+        {/* Welcome Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
             <h2 className="text-3xl font-bold text-gray-900">
               Welcome back, {user.name.split(' ')[0]}! 👋
             </h2>
             <p className="mt-2 text-gray-600">
               Ready to create your next AI-powered newsletter?
-            </p>
-          </motion.div>
+          </p>
+        </motion.div>
 
-          {/* Stats Grid */}
+        {/* Stats Grid */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-            {stats.map((stat, index) => (
-              <motion.div
-                key={stat.name}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+          {stats.map((stat, index) => (
+            <motion.div
+              key={stat.name}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
                 className="bg-white overflow-hidden shadow rounded-lg"
-              >
+            >
                 <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
                       <stat.icon className="h-6 w-6 text-gray-400" />
                     </div>
                     <div className="ml-5 w-0 flex-1">
@@ -252,25 +255,25 @@ export default function DashboardPage() {
                         <dd className="flex items-baseline">
                           <div className="text-2xl font-semibold text-gray-900">
                             {stat.value}
-                          </div>
+                </div>
                           <div className={`ml-2 flex items-baseline text-sm font-semibold ${
-                            stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {stat.change}
+                      stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {stat.change}
                           </div>
                         </dd>
                       </dl>
-                    </div>
                   </div>
                 </div>
-              </motion.div>
-            ))}
+              </div>
+            </motion.div>
+          ))}
           </div>
 
-          {/* Quick Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+        {/* Quick Actions */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
             className="bg-white shadow rounded-lg mb-8"
           >
@@ -333,19 +336,19 @@ export default function DashboardPage() {
                     <p className="mt-2 text-sm text-gray-500">
                       Manage your account preferences
                     </p>
-                  </div>
+                    </div>
                   <span className="pointer-events-none absolute top-6 right-6 text-gray-300 group-hover:text-gray-400">
                     <ArrowRightOnRectangleIcon className="h-5 w-5" />
                   </span>
                 </button>
-              </div>
-            </div>
-          </motion.div>
+                    </div>
+          </div>
+        </motion.div>
 
-          {/* Recent Newsletters */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+        {/* Recent Newsletters */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
             className="bg-white shadow rounded-lg"
           >
@@ -390,30 +393,30 @@ export default function DashboardPage() {
                                 : 'Draft'
                               }
                             </p>
-                          </div>
+          </div>
                           <div className="flex items-center space-x-2">
                             {newsletter.openRate && (
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 {newsletter.openRate} open rate
                               </span>
                             )}
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              newsletter.status === 'published' 
-                                ? 'bg-green-100 text-green-800' 
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          newsletter.status === 'published' 
+                            ? 'bg-green-100 text-green-800' 
                                 : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {newsletter.status}
-                            </span>
+                        }`}>
+                          {newsletter.status}
+                        </span>
                           </div>
                         </div>
                       </li>
                     ))}
                   </ul>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        </div>
+                        )}
+                      </div>
+          </div>
+        </motion.div>
+      </div>
       </main>
     </div>
   );
