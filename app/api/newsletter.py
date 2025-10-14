@@ -174,14 +174,17 @@ async def generate_newsletter(
                         continue
                     deduped.append(a)
 
-                # Sort if requested
-                sort_key = request.sort_by
-                if sort_key == "quality_score":
-                    deduped.sort(key=lambda x: (x.get("quality_score") or 0), reverse=True)
-                elif sort_key == "published_at":
-                    deduped.sort(key=lambda x: (x.get("published_at") or ""), reverse=True)
-                else:  # recency_then_quality
-                    deduped.sort(key=lambda x: ((x.get("published_at") or ""), (x.get("quality_score") or 0)), reverse=True)
+                # Sort: images first, then quality, then recency
+                def has_image(a: Dict[str, Any]) -> int:
+                    return 1 if a.get("image_url") else 0
+                deduped.sort(
+                    key=lambda x: (
+                        has_image(x),
+                        (x.get("quality_score") or 0),
+                        (x.get("published_at") or "")
+                    ),
+                    reverse=True
+                )
 
                 # Reduce to include_fields
                 include_set = set(request.include_fields or ["title","summary","url","tags"])

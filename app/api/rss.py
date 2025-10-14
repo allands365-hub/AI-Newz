@@ -657,7 +657,8 @@ async def get_articles(
     category: Optional[str] = Query(None, description="Filter by category"),
     min_quality: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum quality score"),
     exclude_duplicates: bool = Query(True, description="Exclude duplicate articles"),
-    exclude_used: bool = Query(False, description="Exclude articles already used in newsletters")
+        exclude_used: bool = Query(False, description="Exclude articles already used in newsletters"),
+        prefer_images: bool = Query(True, description="Prefer articles that have images")
 ):
     """Get articles with basic filtering using Supabase REST API"""
     try:
@@ -671,14 +672,15 @@ async def get_articles(
         supabase_service = SupabaseRSSService(access_token=access_token)
         
         # Get articles for this user using Supabase REST API
-        articles = await supabase_service.get_articles_for_user(
+            articles = await supabase_service.get_articles_for_user(
             user_id=current_user["id"],
             limit=limit,
             offset=offset,
             category=category,
             min_quality=min_quality,
             exclude_duplicates=exclude_duplicates,
-            exclude_used=exclude_used
+                exclude_used=exclude_used,
+                prefer_images=prefer_images
         )
         
         return articles

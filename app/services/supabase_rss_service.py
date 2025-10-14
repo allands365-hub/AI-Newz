@@ -194,14 +194,14 @@ class SupabaseRSSService:
         category: Optional[str] = None,
         min_quality: Optional[float] = None,
         exclude_duplicates: bool = True,
-        exclude_used: bool = False
+        exclude_used: bool = False,
+        prefer_images: bool = False
     ) -> List[Dict[str, Any]]:
         """Get articles for a specific user using Supabase REST API with RLS"""
         try:
             # Build query parameters
             params = {
                 "select": "*",
-                "order": "published_at.desc",
                 "limit": str(limit),
                 "offset": str(offset)
             }
@@ -220,16 +220,28 @@ class SupabaseRSSService:
             
             if exclude_used:
                 filters.append("is_used_in_newsletter.eq.false")
+
+            if prefer_images:
+                filters.append("image_url.not.is.null")
             
             # Add filters to params
             if filters:
-                # Use the first filter as the main filter and add others as additional filters
                 params["user_id"] = f"eq.{user_id}"
-                if len(filters) > 1:
-                    # Add other filters
-                    for i, filter in enumerate(filters[1:], 1):
-                        key, value = filter.split(".", 1)
-                        params[f"{key}"] = value
+                # Decompose supported filters explicitly for Supabase REST
+                for f in filters:
+                    if f.startswith("category."):
+                        params["category"] = f.split(".", 1)[1]
+                    elif f.startswith("quality_score."):
+                        params["quality_score"] = f.split(".", 1)[1]
+                    elif f.startswith("is_duplicate."):
+                        params["is_duplicate"] = f.split(".", 1)[1]
+                    elif f.startswith("is_used_in_newsletter."):
+                        params["is_used_in_newsletter"] = f.split(".", 1)[1]
+                    elif f.startswith("image_url."):
+                        params["image_url"] = f.split(".", 1)[1]
+
+            # Order: images first, then quality, then recency
+            params["order"] = "image_url.not.is.null.desc,quality_score.desc,published_at.desc"
             
             # Make request to Supabase REST API
             async with httpx.AsyncClient() as client:

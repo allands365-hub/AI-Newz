@@ -707,7 +707,37 @@ class RSSService:
             if images:
                 # Get the first/largest image
                 main_image = images[0]
-                image_url = main_image.get('src')
+                # Support lazy-loading attributes and srcset
+                image_url = (
+                    main_image.get('src') or
+                    main_image.get('data-src') or
+                    main_image.get('data-original') or
+                    main_image.get('data-lazy') or
+                    main_image.get('data-thumbnail')
+                )
+                # Handle srcset - pick the largest candidate
+                if (not image_url) and main_image.get('srcset'):
+                    try:
+                        candidates = [c.strip() for c in main_image.get('srcset').split(',')]
+                        def parse_pair(p):
+                            parts = p.split()
+                            if len(parts) == 1:
+                                return (parts[0], 0)
+                            size = parts[1]
+                            try:
+                                if size.endswith('w'):
+                                    return (parts[0], int(size[:-1]))
+                                if size.endswith('x'):
+                                    return (parts[0], int(float(size[:-1]) * 1000))
+                            except Exception:
+                                return (parts[0], 0)
+                            return (parts[0], 0)
+                        parsed = [parse_pair(p) for p in candidates]
+                        parsed.sort(key=lambda x: x[1], reverse=True)
+                        if parsed:
+                            image_url = parsed[0][0]
+                    except Exception:
+                        pass
                 
                 # Handle relative URLs
                 if image_url and not image_url.startswith('http'):
@@ -725,7 +755,12 @@ class RSSService:
                 # Try to find a smaller version for thumbnail
                 if not image_data['thumbnail_url']:
                     for img in images:
-                        src = img.get('src', '').lower()
+                        src = (
+                            img.get('src') or
+                            img.get('data-src') or
+                            img.get('data-original') or
+                            img.get('data-lazy') or ''
+                        ).lower()
                         if any(keyword in src for keyword in ['thumbnail', 'thumb', 'small', 'preview']):
                             thumbnail_url = img.get('src')
                             if thumbnail_url and not thumbnail_url.startswith('http'):
@@ -787,12 +822,36 @@ class RSSService:
                     image_candidates.append(twitter_image['content'])
                     logger.info(f"✅ Found Twitter card image: {twitter_image['content']}")
                 
-                # 3. Look for images in article content
+                # 3. Look for images in article content (with lazy attrs/srcset)
                 article_content = soup.find('article') or soup.find('main') or soup.find('div', class_=re.compile(r'content|article|post'))
                 if article_content:
                     images = article_content.find_all('img')
                     for img in images:
-                        src = img.get('src')
+                        # Prefer explicit src, then lazy attrs
+                        src = img.get('src') or img.get('data-src') or img.get('data-original') or img.get('data-lazy')
+                        if (not src) and img.get('srcset'):
+                            try:
+                                candidates = [c.strip() for c in img.get('srcset').split(',')]
+                                sizes = []
+                                for c in candidates:
+                                    parts = c.split()
+                                    url = parts[0]
+                                    score = 0
+                                    if len(parts) > 1:
+                                        s = parts[1]
+                                        try:
+                                            if s.endswith('w'):
+                                                score = int(s[:-1])
+                                            elif s.endswith('x'):
+                                                score = int(float(s[:-1]) * 1000)
+                                        except Exception:
+                                            score = 0
+                                    sizes.append((url, score))
+                                sizes.sort(key=lambda x: x[1], reverse=True)
+                                if sizes:
+                                    src = sizes[0][0]
+                            except Exception:
+                                pass
                         if src and self._is_valid_image_url(src):
                             # Prefer larger images
                             width = img.get('width')
