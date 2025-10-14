@@ -120,6 +120,8 @@ export default function RSSPage() {
       if (selectedSource) params.append('source_id', selectedSource.toString());
       // Default initial load to prefer_images=true to prioritize items with images
       if (!params.has('prefer_images')) params.append('prefer_images', 'true');
+      // Hint backend to exclude duplicates at source level when available
+      params.append('exclude_duplicates', 'true');
       const nextOffset = reset ? 0 : articlesOffset;
       params.append('limit', String(articlesLimit));
       params.append('offset', String(nextOffset));
