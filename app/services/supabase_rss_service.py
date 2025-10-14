@@ -222,7 +222,8 @@ class SupabaseRSSService:
                 filters.append("is_used_in_newsletter.eq.false")
 
             if prefer_images:
-                filters.append("image_url.not.is.null")
+                # Prefer only articles flagged with images
+                filters.append("has_images.eq.true")
             
             # Add filters to params
             if filters:
@@ -237,8 +238,8 @@ class SupabaseRSSService:
                         params["is_duplicate"] = f.split(".", 1)[1]
                     elif f.startswith("is_used_in_newsletter."):
                         params["is_used_in_newsletter"] = f.split(".", 1)[1]
-                    elif f.startswith("image_url."):
-                        params["image_url"] = f.split(".", 1)[1]
+                    elif f.startswith("has_images."):
+                        params["has_images"] = f.split(".", 1)[1]
 
             # Order: images first (via has_images), then quality, then recency
             # Supabase REST order format: order=column.desc,second.desc

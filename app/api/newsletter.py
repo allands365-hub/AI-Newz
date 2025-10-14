@@ -174,8 +174,10 @@ async def generate_newsletter(
                         continue
                     deduped.append(a)
 
-                # Sort: images first, then quality, then recency
+                # Sort: images first (has_images or image_url), then quality, then recency
                 def has_image(a: Dict[str, Any]) -> int:
+                    if a.get("has_images") is True:
+                        return 1
                     return 1 if a.get("image_url") else 0
                 deduped.sort(
                     key=lambda x: (
