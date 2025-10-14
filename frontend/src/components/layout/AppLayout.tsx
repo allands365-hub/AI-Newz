@@ -1,16 +1,21 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Navigation } from '@/components/navigation';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
+// Disable SSR for Navigation to avoid hydration mismatches
+const Navigation = dynamic(() => import('@/components/navigation/Navigation'), { ssr: false });
+
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
   const pathname = usePathname();
 
   // Don't show navigation on auth pages
@@ -29,16 +34,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   //   );
   // }
 
-  // Show auth pages without navigation
-  if (!shouldShowNavigation) {
-    return <>{children}</>;
-  }
-
+  // Always render a stable shell; toggle client-only Navigation inside to avoid SSR mismatch
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Navigation Sidebar */}
-      <Navigation />
-      
+      {/* Navigation Sidebar (client-only) */}
+      {isMounted && shouldShowNavigation ? <Navigation /> : null}
       {/* Main Content */}
       <main className="flex-1 lg:ml-80">
         <div className="h-full">
