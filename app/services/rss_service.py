@@ -982,6 +982,63 @@ class RSSService:
                 itunes_image = entry['itunes_image']
                 if isinstance(itunes_image, dict):
                     rss_images['image_url'] = itunes_image.get('href')
+
+            # 6. Check content:encoded / content HTML for <img> when RSS lacks media fields
+            if (not rss_images['image_url']) and 'content' in entry:
+                try:
+                    from bs4 import BeautifulSoup
+                    from urllib.parse import urljoin
+                    base_url = entry.get('link') or ''
+                    contents = entry.get('content') or []
+                    # feedparser gives a list of dicts with 'value'
+                    html_parts = []
+                    for c in contents:
+                        if isinstance(c, dict):
+                            val = c.get('value') or c.get('content')
+                            if isinstance(val, str):
+                                html_parts.append(val)
+                        elif isinstance(c, str):
+                            html_parts.append(c)
+                    if html_parts:
+                        soup = BeautifulSoup(' '.join(html_parts), 'html.parser')
+                        img = soup.find('img')
+                        if img:
+                            # Support lazy attrs and srcset
+                            src = img.get('src') or img.get('data-src') or img.get('data-original') or img.get('data-lazy') or img.get('data-thumbnail')
+                            if (not src) and img.get('srcset'):
+                                try:
+                                    candidates = [p.strip() for p in img['srcset'].split(',')]
+                                    def parse_pair(p):
+                                        parts = p.split()
+                                        if len(parts) == 1:
+                                            return (parts[0], 0)
+                                        size = parts[1]
+                                        try:
+                                            if size.endswith('w'):
+                                                return (parts[0], int(size[:-1]))
+                                            if size.endswith('x'):
+                                                return (parts[0], int(float(size[:-1]) * 1000))
+                                        except Exception:
+                                            return (parts[0], 0)
+                                        return (parts[0], 0)
+                                    parsed = [parse_pair(p) for p in candidates]
+                                    parsed.sort(key=lambda x: x[1], reverse=True)
+                                    if parsed:
+                                        src = parsed[0][0]
+                                except Exception:
+                                    pass
+                            if src:
+                                if src.startswith('//'):
+                                    src = 'https:' + src
+                                elif src.startswith('/') and base_url:
+                                    src = urljoin(base_url, src)
+                                if isinstance(src, str) and src.startswith('http'):
+                                    rss_images['image_url'] = src
+                                    if not rss_images['thumbnail_url']:
+                                        rss_images['thumbnail_url'] = src
+                                    rss_images['image_alt_text'] = img.get('alt') or rss_images['image_alt_text']
+                except Exception:
+                    pass
             
             # Clean up URLs
             for key in ['image_url', 'thumbnail_url']:
