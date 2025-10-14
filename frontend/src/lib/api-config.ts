@@ -15,7 +15,7 @@ export const API_ENDPOINTS = {
     GENERATE: `${API_BASE_URL}/api/v1/newsletters/generate`,
     TEST_GENERATE: `${API_BASE_URL}/api/v1/newsletters/test-generate`,
     TEST_GENERATE_CUSTOM: `${API_BASE_URL}/api/v1/test-newsletter-generate`,
-    LIST: `${API_BASE_URL}/api/v1/newsletters/`,
+    LIST: '/api/newsletters',
     GET: (id: string) => `${API_BASE_URL}/api/v1/newsletters/${id}`,
     UPDATE: (id: string) => `${API_BASE_URL}/api/v1/newsletters/${id}`,
     DELETE: (id: string) => `${API_BASE_URL}/api/v1/newsletters/${id}`,

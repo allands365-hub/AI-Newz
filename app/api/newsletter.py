@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import httpx
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
@@ -12,6 +13,7 @@ from app.models.newsletter import Newsletter
 from app.services.grok_service import GrokService
 from app.services.supabase_rss_service import SupabaseRSSService
 from app.services.supabase_fallback_service import supabase_fallback
+from app.core.config import settings
 from app.schemas.newsletter import (
     NewsletterCreate,
     NewsletterUpdate,
@@ -22,6 +24,7 @@ from app.schemas.newsletter import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+security = HTTPBearer()
 
 @router.get("/test")
 async def test_newsletter():
@@ -325,25 +328,57 @@ async def get_newsletters(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     status: Optional[str] = Query(None, description="Filter by status"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
-    """Get user's newsletters with pagination and filtering"""
+    """Get user's newsletters with pagination and filtering via Supabase REST (RLS)."""
     try:
-        query = db.query(Newsletter).filter(Newsletter.user_id == current_user["id"])
-        
+        # Always use Supabase REST with user token (RLS)
+        logger.info("Using Supabase REST (JWT) to list newsletters")
+        access_token = credentials.credentials if credentials else None
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Missing bearer token")
+
+        # Call Supabase REST directly with the user's JWT for RLS
+        supabase_url = settings.SUPABASE_URL
+        headers = {
+            "apikey": settings.SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {access_token}",
+        }
+        params = {
+            "user_id": f"eq.{current_user['id']}",
+            "order": "created_at.desc",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.get(
+                    f"{supabase_url}/rest/v1/newsletters",
+                    headers=headers,
+                    params={**params, "select": "*"},
+                )
+                response.raise_for_status()
+                items = response.json()
+        except httpx.HTTPError as e:
+            logger.error(f"Supabase REST error listing newsletters (JWT path): {e}")
+            # Fallback to anon-key path (may return empty due to RLS)
+            fb = await supabase_fallback.get_user_newsletters(current_user["id"])
+            items = fb.get("data", []) if isinstance(fb, dict) else []
+
+        # Optional status filter
         if status:
-            query = query.filter(Newsletter.status == status)
-        
-        newsletters = query.order_by(Newsletter.created_at.desc()).offset(skip).limit(limit).all()
-        
-        return [newsletter.to_dict() for newsletter in newsletters]
-        
+            items = [n for n in items if (n.get("status") or "").lower() == status.lower()]
+
+        # Pagination
+        paged = items[skip: skip + limit]
+        return paged
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error fetching newsletters: {e}")
+        logger.exception("Error fetching newsletters")
         raise HTTPException(
             status_code=500,
-            detail="An error occurred while fetching newsletters"
+            detail=f"An error occurred while fetching newsletters: {str(e)}"
         )
 
 @router.get("/{newsletter_id}", response_model=NewsletterResponse)
