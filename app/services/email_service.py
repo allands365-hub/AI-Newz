@@ -24,6 +24,12 @@ class EmailService:
     ) -> bool:
         """Send a newsletter via email"""
         try:
+            # Best-effort enrich articles with images before rendering
+            try:
+                if isinstance(newsletter, dict) and newsletter.get("articles"):
+                    newsletter["articles"] = await self._enrich_articles_with_images(newsletter["articles"])
+            except Exception:
+                pass
             # Generate HTML content
             html_content = self._generate_newsletter_html(newsletter)
             
@@ -54,94 +60,235 @@ class EmailService:
         except Exception as e:
             logger.error(f"Error sending newsletter: {e}")
             return False
+
+    async def _enrich_articles_with_images(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Add images to articles that lack them using OpenGraph/Twitter meta tags.
+        Best-effort; silently ignores failures.
+        """
+        if not articles:
+            return articles
+        try:
+            import asyncio
+            import httpx
+            from bs4 import BeautifulSoup
+
+            async def fetch_image(url: str) -> Optional[str]:
+                if not url:
+                    return None
+                try:
+                    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+                        resp = await client.get(url)
+                        text = resp.text
+                except Exception:
+                    return None
+                try:
+                    soup = BeautifulSoup(text, "html.parser")
+                    # OG image first
+                    for sel in (
+                        {"property": "og:image"},
+                        {"property": "og:image:url"},
+                        {"property": "og:image:secure_url"},
+                        {"name": "og:image"},
+                    ):
+                        tag = soup.find("meta", sel)
+                        if tag and tag.get("content"):
+                            return tag["content"].strip()
+                    # Twitter image
+                    for sel in (
+                        {"name": "twitter:image"},
+                        {"name": "twitter:image:src"},
+                        {"property": "twitter:image"},
+                        {"property": "twitter:image:src"},
+                    ):
+                        tag = soup.find("meta", sel)
+                        if tag and tag.get("content"):
+                            return tag["content"].strip()
+                    # Fallback: first reasonably large <img>
+                    best = None
+                    best_score = 0
+                    for img in soup.find_all("img"):
+                        src = img.get("src") or img.get("data-src") or img.get("data-original")
+                        if not src or not isinstance(src, str) or not src.startswith("http"):
+                            continue
+                        w = img.get("width")
+                        h = img.get("height")
+                        score = 100
+                        try:
+                            if w and h:
+                                score += min(int(w) * int(h) // 500, 400)
+                        except Exception:
+                            pass
+                        if score > best_score:
+                            best_score = score
+                            best = src
+                    return best
+                except Exception:
+                    return None
+
+            async def enrich(a: Dict[str, Any]) -> Dict[str, Any]:
+                if a.get("thumbnail_url") or a.get("image_url"):
+                    return a
+                img = await fetch_image(a.get("url"))
+                if img:
+                    a["thumbnail_url"] = a.get("thumbnail_url") or img
+                    a["image_url"] = a.get("image_url") or img
+                return a
+
+            return await asyncio.gather(*[enrich(dict(a)) for a in articles])
+        except Exception:
+            return articles
     
     def _generate_newsletter_html(self, newsletter: Dict[str, Any]) -> str:
-        """Generate HTML content for newsletter"""
+        """Generate responsive, two-column newsletter HTML (email-client friendly)."""
         template_str = """
         <!DOCTYPE html>
-        <html>
+        <html lang="en">
         <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{{ newsletter.subject }}</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; }
-                .header h1 { margin: 0; font-size: 28px; font-weight: 600; }
-                .header p { margin: 10px 0 0 0; opacity: 0.9; }
-                .content { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                .opening { font-size: 18px; margin-bottom: 30px; color: #555; }
-                .section { margin-bottom: 30px; }
-                .section h2 { color: #667eea; font-size: 22px; margin-bottom: 15px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
-                .section p { margin-bottom: 15px; }
-                .section ul { margin: 15px 0; padding-left: 20px; }
-                .section li { margin-bottom: 8px; }
-                .cta { background: #f8f9ff; padding: 20px; border-radius: 8px; margin: 30px 0; text-align: center; }
-                .cta h3 { color: #667eea; margin: 0 0 10px 0; }
-                .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; }
-                .tags { margin: 20px 0; }
-                .tag { display: inline-block; background: #e3f2fd; color: #1976d2; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-right: 8px; margin-bottom: 8px; }
-                .meta { color: #666; font-size: 14px; margin-bottom: 20px; }
-            </style>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta http-equiv="x-ua-compatible" content="ie=edge">
+          <title>{{ newsletter.subject }}</title>
+          <style>
+            /* Client resets */
+            body, table, td, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+            table, td { mso-table-lspace:0pt; mso-table-rspace:0pt; }
+            img { -ms-interpolation-mode:bicubic; }
+            img { border:0; height:auto; line-height:100%; outline:none; text-decoration:none; }
+            table { border-collapse:collapse !important; }
+            body { margin:0 !important; padding:0 !important; width:100% !important; }
+            /* Responsive */
+            @media screen and (max-width: 600px) {
+              .container { width:100% !important; }
+              .stack { display:block !important; width:100% !important; }
+              .p-24 { padding:16px !important; }
+            }
+            /* Utilities */
+            .btn { background:#2563eb; color:#ffffff !important; text-decoration:none; padding:12px 18px; border-radius:6px; display:inline-block; font-weight:600; }
+            .badge { display:inline-block; padding:4px 10px; border-radius:9999px; background:#eef2ff; color:#4f46e5; font-size:12px; }
+          </style>
         </head>
-        <body>
-            <div class="header">
-                <h1>{{ newsletter.subject }}</h1>
-                <p>AI-Generated Newsletter • {{ newsletter.estimated_read_time or '5 minutes' }} read</p>
-            </div>
-            
-            <div class="content">
-                <div class="opening">{{ newsletter.opening }}</div>
-                
-                {% for section in newsletter.sections %}
-                <div class="section">
-                    <h2>{{ section.title }}</h2>
-                    <div>{{ section.content | replace('\n', '<br>') | safe }}</div>
-                </div>
-                {% endfor %}
-                
-                {% if newsletter.articles %}
-                <div class="section">
-                    <h2>📰 Featured Articles</h2>
-                    <div class="articles">
-                        {% for article in newsletter.articles %}
-                        <div class="article-item" style="margin-bottom: 20px; padding: 15px; border-left: 3px solid #667eea; background: #f8f9ff;">
-                            <h3 style="margin: 0 0 10px 0; color: #333; font-size: 16px;">
-                                <a href="{{ article.url }}" style="color: #667eea; text-decoration: none;">{{ article.title }}</a>
-                            </h3>
-                            <p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">{{ article.summary }}</p>
-                            <div style="font-size: 12px; color: #888;">
-                                <span>By {{ article.author or 'Unknown' }}</span>
-                                {% if article.published_at %}
-                                <span> • {{ article.published_at[:10] }}</span>
-                                {% endif %}
-                            </div>
+        <body style="background:#f5f7fb;">
+          <center role="article" aria-roledescription="email" lang="en" style="width:100%; background:#f5f7fb;">
+            <!-- Outer wrapper -->
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f5f7fb;">
+              <tr>
+                <td align="center" style="padding:24px;">
+                  <!-- Card -->
+                  <table role="presentation" class="container" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                    <!-- Hero -->
+                    <tr>
+                      <td style="background:linear-gradient(135deg,#6366f1,#8b5cf6); padding:28px 24px; color:#ffffff;">
+                        <span class="badge">AI‑Newz</span>
+                        <h1 style="margin:12px 0 8px; font-family:Segoe UI,Roboto,Arial,sans-serif; font-size:26px; line-height:1.25;">{{ newsletter.subject }}</h1>
+                        <p style="margin:0; opacity:.9;">{{ newsletter.estimated_read_time or '5 minutes' }} read</p>
+                        {% if newsletter.call_to_action %}
+                        <div style="margin-top:16px;">
+                          <a class="btn" href="#">Browse Templates</a>
                         </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-                
-                {% if newsletter.call_to_action %}
-                <div class="cta">
-                    <h3>Call to Action</h3>
-                    <p>{{ newsletter.call_to_action }}</p>
-                </div>
-                {% endif %}
-                
-                {% if newsletter.tags %}
-                <div class="tags">
-                    {% for tag in newsletter.tags %}
-                    <span class="tag">{{ tag }}</span>
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-            
-            <div class="footer">
-                <p>This newsletter was generated by AI-Newz</p>
-                <p>Generated on {{ newsletter.generated_at or 'today' }}</p>
-            </div>
+                        {% endif %}
+                      </td>
+                    </tr>
+                    <!-- Body: two columns -->
+                    <tr>
+                      <td class="p-24" style="padding:24px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                          <tr>
+                            <!-- Main column -->
+                            <td class="stack" width="64%" valign="top" style="padding-right:16px;">
+                              <!-- Opening -->
+                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:20px;">
+                                <tr><td style="font-family:Segoe UI,Roboto,Arial,sans-serif; color:#374151; font-size:16px; line-height:1.6;">{{ newsletter.opening }}</td></tr>
+                              </table>
+                              {% for section in newsletter.sections %}
+                              {% if (section.content | default('') | trim) != (newsletter.opening | default('') | trim) %}
+                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:20px;">
+                                <tr>
+                                  <td style="font-family:Segoe UI,Roboto,Arial,sans-serif;">
+                                    <h2 style="margin:0 0 8px; color:#4f46e5; font-size:18px;">{{ section.title }}</h2>
+                                    <div style="color:#374151; font-size:15px; line-height:1.6;">{{ section.content | replace('\n', '<br>') | safe }}</div>
+                                  </td>
+                                </tr>
+                              </table>
+                              {% endif %}
+                              {% endfor %}
+
+                              {% if newsletter.articles %}
+                              <!-- Featured Articles grid -->
+                              <h2 style="font-family:Segoe UI,Roboto,Arial,sans-serif; color:#111827; font-size:18px; margin:24px 0 12px;">Featured articles</h2>
+                              {% for article in newsletter.articles %}
+                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:12px; border:1px solid #eef2f7; border-radius:8px;">
+                                <tr>
+                                  {% set img = article.thumbnail_url or article.image_url %}
+                                  {% if img %}
+                                  <td width="96" valign="top" style="padding:12px 0 12px 12px;">
+                                    <a href="{{ article.url }}"><img src="{{ img }}" width="84" height="84" alt="" style="display:block; width:84px; height:84px; object-fit:cover; border-radius:8px;"></a>
+                                  </td>
+                                  {% endif %}
+                                  <td style="padding:12px 14px; font-family:Segoe UI,Roboto,Arial,sans-serif;">
+                                    <a href="{{ article.url }}" style="color:#1d4ed8; text-decoration:none; font-weight:600;">{{ article.title }}</a>
+                                    {% if article.summary %}
+                                      <div style="color:#4b5563; font-size:14px; margin-top:6px;">{{ article.summary }}</div>
+                                    {% endif %}
+                                    <div style="color:#6b7280; font-size:12px; margin-top:6px;">
+                                      {{ article.author or 'Unknown' }}{% if article.published_at %} • {{ article.published_at[:10] }}{% endif %}
+                                    </div>
+                                  </td>
+                                </tr>
+                              </table>
+                              {% endfor %}
+                              {% endif %}
+                            </td>
+
+                            <!-- Sidebar -->
+                            <td class="stack" width="36%" valign="top" style="padding-left:16px;">
+                              <!-- Highlight card -->
+                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f3f4f6; border-radius:10px; margin-bottom:16px;">
+                                <tr>
+                                  <td style="padding:16px; font-family:Segoe UI,Roboto,Arial,sans-serif;">
+                                    <h3 style="margin:0 0 8px; font-size:16px; color:#111827;">From around the web</h3>
+                                    <ul style="padding-left:18px; margin:0; color:#374151; font-size:14px;">
+                                      {% if newsletter.articles %}
+                                        {% for article in newsletter.articles[:4] %}
+                                          <li style="margin:6px 0;">
+                                            <a href="{{ article.url }}" style="color:#1f2937; text-decoration:none;">{{ article.title }}</a>
+                                          </li>
+                                        {% endfor %}
+                                      {% else %}
+                                          <li style="margin:6px 0;">AI and industry updates curated for you</li>
+                                      {% endif %}
+                                    </ul>
+                                  </td>
+                                </tr>
+                              </table>
+
+                              <!-- CTA card -->
+                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#eef2ff; border-radius:10px;">
+                                <tr>
+                                  <td style="padding:16px; font-family:Segoe UI,Roboto,Arial,sans-serif; color:#3730a3;">
+                                    <div style="font-weight:700; margin-bottom:8px;">Do more with AI‑Newz</div>
+                                    <div style="font-size:14px; color:#4338ca;">Generate, curate, and send in minutes.</div>
+                                    <div style="margin-top:12px;"><a href="#" class="btn" style="background:#4338ca;">Try Pro</a></div>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                      <td style="padding:20px 24px; background:#ffffff; border-top:1px solid #eef2f7; text-align:center; color:#6b7280; font-family:Segoe UI,Roboto,Arial,sans-serif; font-size:12px;">
+                        You are receiving this email because you signed up to AI‑Newz.<br>
+                        Generated on {{ newsletter.generated_at or 'today' }} · {{ newsletter.tags|join(', ') if newsletter.tags else 'AI, News' }}
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </center>
         </body>
         </html>
         """
