@@ -80,9 +80,15 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
+    if (typeof window === 'undefined') return 'system';
+    const stored = window.localStorage.getItem('theme');
+    return (stored === 'light' || stored === 'dark' || stored === 'system') ? stored : 'system';
+  });
 
   const tabs = [
     { id: 'profile', name: 'Profile', icon: UserIcon },
+    { id: 'appearance', name: 'Appearance', icon: CogIcon },
     { id: 'email', name: 'Email', icon: EnvelopeIcon },
     { id: 'newsletter', name: 'Newsletter', icon: DocumentTextIcon },
     { id: 'notifications', name: 'Notifications', icon: BellIcon },
@@ -201,11 +207,11 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-zinc-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="mt-2 text-gray-600">Manage your account settings and preferences</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-200">Manage your account settings and preferences</p>
         </div>
 
         {message && (
@@ -214,8 +220,8 @@ export default function SettingsPage() {
             animate={{ opacity: 1, y: 0 }}
             className={`mb-6 p-4 rounded-lg flex items-center space-x-3 ${
               message.type === 'success' 
-                ? 'bg-green-50 text-green-800 border border-green-200' 
-                : 'bg-red-50 text-red-800 border border-red-200'
+                ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/20 dark:text-green-200 dark:border-green-900' 
+                : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-200 dark:border-red-900'
             }`}
           >
             {message.type === 'success' ? (
@@ -239,8 +245,8 @@ export default function SettingsPage() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                       activeTab === tab.id
-                        ? 'bg-primary-100 text-primary-700 border border-primary-200'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-primary-100 text-primary-700 border border-primary-200 dark:bg-zinc-900 dark:text-primary-300 dark:border-primary-900/40'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-zinc-900'
                     }`}
                   >
                     <Icon className="h-5 w-5 mr-3" />
@@ -258,7 +264,7 @@ export default function SettingsPage() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.2 }}
-              className="bg-white rounded-lg shadow-sm border border-gray-200"
+              className="bg-white dark:bg-zinc-950 rounded-lg shadow-sm border border-gray-200 dark:border-zinc-800"
             >
               {activeTab === 'profile' && (
                 <ProfileSettings 
@@ -274,6 +280,9 @@ export default function SettingsPage() {
                   onTestEmail={handleTestEmail}
                   isSaving={isSaving}
                 />
+              )}
+              {activeTab === 'appearance' && (
+                <AppearanceSettings />
               )}
               {activeTab === 'newsletter' && (
                 <NewsletterSettings 
@@ -303,6 +312,63 @@ export default function SettingsPage() {
                 />
               )}
             </motion.div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+// Appearance Settings Component
+function AppearanceSettings() {
+  const [value, setValue] = useState<'light' | 'dark' | 'system'>(() => {
+    if (typeof window === 'undefined') return 'system';
+    const stored = window.localStorage.getItem('theme');
+    return (stored === 'light' || stored === 'dark' || stored === 'system') ? stored : 'system';
+  });
+
+  useEffect(() => {
+    try { window.localStorage.setItem('theme', value); } catch {}
+    // Toggle class on html (ThemeProvider also ensures this on mount/change)
+    if (typeof document !== 'undefined') {
+      const root = document.documentElement;
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isDark = value === 'dark' || (value === 'system' && prefersDark);
+      root.classList.toggle('dark', isDark);
+    }
+  }, [value]);
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center space-x-3 mb-6">
+        <div className="p-2 bg-primary-100 rounded-lg">
+          <CogIcon className="h-6 w-6 text-primary-600" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Appearance</h2>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Theme</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Choose how AI‑Newz looks on your device.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {(['light','dark','system'] as const).map(option => (
+              <button
+                key={option}
+                onClick={() => setValue(option)}
+                className={`border rounded-lg p-4 text-left transition-colors ${
+                  value === option
+                    ? 'border-primary-300 bg-primary-50 dark:border-primary-700/60 dark:bg-zinc-900'
+                    : 'border-gray-200 hover:bg-gray-50 dark:border-zinc-800 dark:hover:bg-zinc-800'
+                }`}
+              >
+                <div className="font-medium capitalize text-gray-900 dark:text-gray-100">{option}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  {option === 'light' && 'Bright theme for well‑lit environments.'}
+                  {option === 'dark' && 'Dim theme that’s easier on the eyes at night.'}
+                  {option === 'system' && 'Follow your device’s appearance.'}
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -343,13 +409,13 @@ function ProfileSettings({ userProfile, onSave, isSaving }: {
         <div className="p-2 bg-primary-100 rounded-lg">
           <UserIcon className="h-6 w-6 text-primary-600" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900">Profile Settings</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Profile Settings</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Full Name
             </label>
             <input
@@ -362,7 +428,7 @@ function ProfileSettings({ userProfile, onSave, isSaving }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Email Address
             </label>
             <input
@@ -376,7 +442,7 @@ function ProfileSettings({ userProfile, onSave, isSaving }: {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Profile Picture URL
           </label>
           <input
@@ -429,12 +495,12 @@ function EmailSettings({ emailPrefs, onSave, onTestEmail, isSaving }: {
         <div className="p-2 bg-primary-100 rounded-lg">
           <EnvelopeIcon className="h-6 w-6 text-primary-600" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900">Email Settings</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Email Settings</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">
-          <h3 className="text-lg font-medium text-gray-900">Email Preferences</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Email Preferences</h3>
           
           <div className="space-y-3">
             <label className="flex items-center">
@@ -444,7 +510,7 @@ function EmailSettings({ emailPrefs, onSave, onTestEmail, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, daily_digest: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">Daily digest emails</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Daily digest emails</span>
             </label>
 
             <label className="flex items-center">
@@ -454,7 +520,7 @@ function EmailSettings({ emailPrefs, onSave, onTestEmail, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, newsletter_notifications: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">Newsletter notifications</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Newsletter notifications</span>
             </label>
 
             <label className="flex items-center">
@@ -464,14 +530,14 @@ function EmailSettings({ emailPrefs, onSave, onTestEmail, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, marketing_emails: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">Marketing emails</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Marketing emails</span>
             </label>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Delivery Time
             </label>
             <input
@@ -483,7 +549,7 @@ function EmailSettings({ emailPrefs, onSave, onTestEmail, isSaving }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Frequency
             </label>
             <select
@@ -499,7 +565,7 @@ function EmailSettings({ emailPrefs, onSave, onTestEmail, isSaving }: {
         </div>
 
         <div className="border-t border-gray-200 pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Email Testing</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Email Testing</h3>
           <button
             type="button"
             onClick={onTestEmail}
@@ -555,13 +621,13 @@ function NewsletterSettings({ newsletterPrefs, onSave, isSaving }: {
         <div className="p-2 bg-primary-100 rounded-lg">
           <DocumentTextIcon className="h-6 w-6 text-primary-600" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900">Newsletter Settings</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Newsletter Settings</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Default Style
             </label>
             <select
@@ -576,7 +642,7 @@ function NewsletterSettings({ newsletterPrefs, onSave, isSaving }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Default Length
             </label>
             <select
@@ -592,7 +658,7 @@ function NewsletterSettings({ newsletterPrefs, onSave, isSaving }: {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             AI Model
           </label>
           <select
@@ -607,7 +673,7 @@ function NewsletterSettings({ newsletterPrefs, onSave, isSaving }: {
         </div>
 
         <div className="space-y-3">
-          <h3 className="text-lg font-medium text-gray-900">Content Preferences</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Content Preferences</h3>
           
           <label className="flex items-center">
             <input
@@ -616,7 +682,7 @@ function NewsletterSettings({ newsletterPrefs, onSave, isSaving }: {
               onChange={(e) => setFormData({ ...formData, include_trends: e.target.checked })}
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
-            <span className="ml-3 text-sm text-gray-700">Include trending topics</span>
+            <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Include trending topics</span>
           </label>
 
           <label className="flex items-center">
@@ -626,7 +692,7 @@ function NewsletterSettings({ newsletterPrefs, onSave, isSaving }: {
               onChange={(e) => setFormData({ ...formData, include_summaries: e.target.checked })}
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
-            <span className="ml-3 text-sm text-gray-700">Include article summaries</span>
+            <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Include article summaries</span>
           </label>
 
           <label className="flex items-center">
@@ -636,7 +702,7 @@ function NewsletterSettings({ newsletterPrefs, onSave, isSaving }: {
               onChange={(e) => setFormData({ ...formData, auto_save_drafts: e.target.checked })}
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
-            <span className="ml-3 text-sm text-gray-700">Auto-save drafts</span>
+            <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Auto-save drafts</span>
           </label>
         </div>
 
@@ -680,12 +746,12 @@ function NotificationSettings({ notificationSettings, onSave, isSaving }: {
         <div className="p-2 bg-primary-100 rounded-lg">
           <BellIcon className="h-6 w-6 text-primary-600" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900">Notification Settings</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Notification Settings</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">
-          <h3 className="text-lg font-medium text-gray-900">Notification Types</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Notification Types</h3>
           
           <div className="space-y-3">
             <label className="flex items-center">
@@ -695,7 +761,7 @@ function NotificationSettings({ notificationSettings, onSave, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, email_notifications: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">Email notifications</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Email notifications</span>
             </label>
 
             <label className="flex items-center">
@@ -705,7 +771,7 @@ function NotificationSettings({ notificationSettings, onSave, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, push_notifications: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">Push notifications</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Push notifications</span>
             </label>
 
             <label className="flex items-center">
@@ -715,7 +781,7 @@ function NotificationSettings({ notificationSettings, onSave, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, newsletter_alerts: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">Newsletter alerts</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Newsletter alerts</span>
             </label>
 
             <label className="flex items-center">
@@ -725,7 +791,7 @@ function NotificationSettings({ notificationSettings, onSave, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, system_updates: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">System updates</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">System updates</span>
             </label>
           </div>
         </div>
@@ -775,15 +841,15 @@ function SecuritySettings({ userProfile, onSave, isSaving }: {
         <div className="p-2 bg-primary-100 rounded-lg">
           <ShieldCheckIcon className="h-6 w-6 text-primary-600" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900">Security Settings</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Security Settings</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">
-          <h3 className="text-lg font-medium text-gray-900">Change Password</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Change Password</h3>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Current Password
             </label>
             <input
@@ -795,7 +861,7 @@ function SecuritySettings({ userProfile, onSave, isSaving }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               New Password
             </label>
             <input
@@ -807,7 +873,7 @@ function SecuritySettings({ userProfile, onSave, isSaving }: {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Confirm New Password
             </label>
             <input
@@ -820,7 +886,7 @@ function SecuritySettings({ userProfile, onSave, isSaving }: {
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-lg font-medium text-gray-900">Two-Factor Authentication</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Two-Factor Authentication</h3>
           
           <label className="flex items-center">
             <input
@@ -829,7 +895,7 @@ function SecuritySettings({ userProfile, onSave, isSaving }: {
               onChange={(e) => setFormData({ ...formData, two_factor_enabled: e.target.checked })}
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
-            <span className="ml-3 text-sm text-gray-700">Enable two-factor authentication</span>
+            <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Enable two-factor authentication</span>
           </label>
         </div>
 
@@ -873,12 +939,12 @@ function IntegrationsSettings({ onSave, isSaving }: {
         <div className="p-2 bg-primary-100 rounded-lg">
           <GlobeAltIcon className="h-6 w-6 text-primary-600" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900">Integrations</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Integrations</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">
-          <h3 className="text-lg font-medium text-gray-900">Data Sources</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Data Sources</h3>
           
           <div className="space-y-3">
             <label className="flex items-center">
@@ -888,7 +954,7 @@ function IntegrationsSettings({ onSave, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, rss_feeds: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">RSS Feeds</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">RSS Feeds</span>
             </label>
 
             <label className="flex items-center">
@@ -898,7 +964,7 @@ function IntegrationsSettings({ onSave, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, social_media: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">Social Media</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Social Media</span>
             </label>
 
             <label className="flex items-center">
@@ -908,13 +974,13 @@ function IntegrationsSettings({ onSave, isSaving }: {
                 onChange={(e) => setFormData({ ...formData, analytics: e.target.checked })}
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
-              <span className="ml-3 text-sm text-gray-700">Analytics</span>
+              <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">Analytics</span>
             </label>
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Email Provider
           </label>
           <select

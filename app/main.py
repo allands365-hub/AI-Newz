@@ -75,11 +75,15 @@ async def debug_env():
         "database_url": settings.DATABASE_URL[:50] + "..." if settings.DATABASE_URL else "Not set",
         "supabase_url": settings.SUPABASE_URL,
         "supabase_anon_key": settings.SUPABASE_ANON_KEY[:20] + "..." if settings.SUPABASE_ANON_KEY else "Not set",
+        "supabase_service_role_key_len": len(settings.SUPABASE_SERVICE_ROLE_KEY) if settings.SUPABASE_SERVICE_ROLE_KEY else 0,
         "debug": settings.DEBUG,
         "environment": settings.ENVIRONMENT,
         "os_env_database_url": os.getenv("DATABASE_URL", "Not set")[:50] + "..." if os.getenv("DATABASE_URL") else "Not set",
         "os_env_supabase_url": os.getenv("SUPABASE_URL", "Not set"),
         "os_env_supabase_anon_key": os.getenv("SUPABASE_ANON_KEY", "Not set")[:20] + "..." if os.getenv("SUPABASE_ANON_KEY") else "Not set",
+        "os_env_supabase_service_role_key_len": len(os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")) if os.getenv("SUPABASE_SERVICE_ROLE_KEY") else 0,
+        "os_env_supabase_service_key_len": len(os.getenv("SUPABASE_SERVICE_KEY", "")) if os.getenv("SUPABASE_SERVICE_KEY") else 0,
+        "os_env_service_role_key_len": len(os.getenv("SERVICE_ROLE_KEY", "")) if os.getenv("SERVICE_ROLE_KEY") else 0,
     }
 
 
@@ -88,17 +92,81 @@ async def test_newsletter_generate(request: dict):
     """Test newsletter generation without authentication - for development"""
     try:
         from app.services.grok_service import GrokService
+        from app.services.supabase_rss_service import SupabaseRSSService
+        import httpx
         
         grok_service = GrokService()
-        
+
+        # Normalize incoming params from frontend (camelCase) and backend (snake_case)
+        def pick(key_snake: str, key_camel: str, default=None):
+            return request.get(key_snake, request.get(key_camel, default))
+
+        use_rss = pick('use_rss', 'useRss', True)
+        rss_limit = int(pick('rss_limit', 'rssLimit', 6) or 6)
+        min_quality = pick('min_quality', 'minQuality', None)
+        min_word_count = pick('min_word_count', 'minWordCount', None)
+        require_image = pick('require_image', 'requireImage', False)
+        since_days = pick('since_days', 'sinceDays', 3)
+        include_trending = pick('include_trending_topics', 'includeTrends', True)
+        include_summaries = pick('include_article_summaries', 'includeSummaries', True)
+
+        # Optionally fetch curated RSS articles when requested
+        curated_articles = []
+        if use_rss:
+            try:
+                supa_rss = SupabaseRSSService(use_service_role=True)
+                params = {
+                    "select": "id,title,url,summary,author,published_at,rss_source_id,quality_score,word_count,tags,image_url,category",
+                    "is_active": "eq.true",
+                    "order": "published_at.desc",
+                    "limit": rss_limit,
+                }
+                if min_quality is not None:
+                    params["quality_score"] = f"gte.{min_quality}"
+                if min_word_count:
+                    params["word_count"] = f"gte.{min_word_count}"
+                if require_image:
+                    params["image_url"] = "not.is.null"
+                if since_days and since_days > 0:
+                    from datetime import datetime, timedelta, timezone
+                    since_dt = datetime.now(timezone.utc) - timedelta(days=since_days)
+                    params["published_at"] = f"gte.{since_dt.isoformat()}"
+
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.get(
+                        f"{supa_rss.supabase_url}/rest/v1/articles",
+                        headers=supa_rss.headers,
+                        params=params
+                    )
+                    resp.raise_for_status()
+                    articles = resp.json()
+                # Basic dedupe by title
+                seen = set()
+                curated = []
+                for a in articles:
+                    t = (a.get("title") or "").strip().lower()
+                    if not t or t in seen:
+                        continue
+                    seen.add(t)
+                    curated.append({
+                        k: v for k, v in a.items()
+                        if k in {"id","title","url","summary","author","published_at","rss_source_id","quality_score","word_count","tags","image_url","category"}
+                    })
+                curated_articles = curated[: rss_limit]
+            except Exception as e:
+                logger.warning(f"Test generate RSS curation failed: {e}")
+
         result = await grok_service.generate_newsletter(
-            topic=request.get('topic', 'Test Newsletter'),
-            style=request.get('style', 'professional'),
-            length=request.get('length', 'medium'),
-            include_trends=request.get('include_trending_topics', True),
-            include_summaries=request.get('include_article_summaries', True)
+            topic=pick('topic', 'topic', 'Test Newsletter'),
+            style=pick('style', 'style', 'professional'),
+            length=pick('length', 'length', 'medium'),
+            include_trends=include_trending,
+            include_summaries=include_summaries,
+            curated_articles=curated_articles if curated_articles else None
         )
-        
+
+        # Attach included_articles for frontend rendering consistency
+        result["included_articles"] = curated_articles if curated_articles else []
         return result
     except Exception as e:
         logger.error(f"Error in test newsletter generation: {e}")

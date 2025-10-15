@@ -58,8 +58,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW: int = 3600  # seconds
     
     class Config:
-        env_file = "env.local"
-        case_sensitive = True
+        # Load environment variables from .env (root). Use OS env in production.
+        env_file = ".env"
+        # Accept case-insensitive keys to be more forgiving in local setups
+        case_sensitive = False
 
 
 # Global settings instance

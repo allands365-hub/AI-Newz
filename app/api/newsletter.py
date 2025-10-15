@@ -4,7 +4,7 @@ import httpx
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.supabase_auth import get_current_user_supabase
@@ -63,6 +63,125 @@ async def test_generate_newsletter():
     except Exception as e:
         logger.error(f"Error in test newsletter generation: {e}")
         return {"success": False, "error": str(e)}
+
+@router.post("/test-publish")
+async def test_publish_newsletter(newsletter_data: NewsletterCreate):
+    """Test newsletter publishing without authentication"""
+    try:
+        # Validate required fields
+        if not newsletter_data.title or not newsletter_data.title.strip():
+            raise HTTPException(status_code=422, detail="Title is required and cannot be empty")
+        
+        if not newsletter_data.subject or not newsletter_data.subject.strip():
+            raise HTTPException(status_code=422, detail="Subject is required and cannot be empty")
+        
+        if not newsletter_data.content or not newsletter_data.content.strip():
+            raise HTTPException(status_code=422, detail="Content is required and cannot be empty")
+        
+        # Parse content for email sending
+        import json
+        try:
+            if isinstance(newsletter_data.content, str):
+                newsletter_content = json.loads(newsletter_data.content)
+            else:
+                newsletter_content = newsletter_data.content
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}, content: {newsletter_data.content}")
+            raise HTTPException(status_code=422, detail=f"Invalid JSON content: {str(e)}")
+        
+        # Send email to user (non-fatal)
+        from app.services.email_service import EmailService
+        email_service = EmailService()
+        try:
+            email_sent = await email_service.send_email_to_address(
+                to="allands365@gmail.com",
+                newsletter=newsletter_content
+            )
+        except Exception as email_error:
+            logger.error(f"Error sending newsletter email (continuing without email): {email_error}")
+            email_sent = False
+        if not email_sent:
+            logger.warning("Failed to send email for newsletter (continuing)")
+        
+        # Create published newsletter using Supabase REST API
+        import httpx
+        import uuid
+        from app.core.config import settings
+        
+        # Use a test user ID for test mode
+        test_user_id = "73f2d20e-6cd3-48a0-ab02-4c3d8c19db59"  # allands365@gmail.com user ID
+        
+        published_newsletter_data = {
+            "id": str(uuid.uuid4()),
+            "user_id": test_user_id,
+            "title": (newsletter_data.title or "").strip(),
+            "subject": (newsletter_data.subject or "").strip(),
+            "content": newsletter_data.content or "",
+            "status": "published",
+            "style": newsletter_data.style or "professional",
+            "length": newsletter_data.length or "medium",
+            "ai_model_used": newsletter_data.ai_model_used or "llama-3.1-70b-versatile",
+            "tokens_used": 0,
+            "subscribers_count": newsletter_data.subscribers_count or 0,
+            "views_count": newsletter_data.views_count or 0,
+            "open_rate": int((newsletter_data.open_rate or 0.0) * 100),
+            "click_rate": int((newsletter_data.click_rate or 0.0) * 100),
+            "estimated_read_time": newsletter_data.estimated_read_time or "5 minutes",
+            "tags": newsletter_data.tags if newsletter_data.tags is not None else [],
+            "published_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Use service role key for server-side operations (with env fallbacks)
+        import os as _os
+        service_key = (
+            settings.SUPABASE_SERVICE_ROLE_KEY
+            or _os.getenv("SUPABASE_SERVICE_KEY")
+            or _os.getenv("SERVICE_ROLE_KEY")
+        )
+        if not settings.SUPABASE_URL or not service_key:
+            logger.error("Missing SUPABASE_URL or service role key in settings/env (test-publish)")
+            raise HTTPException(status_code=500, detail="Server configuration error: Supabase credentials missing")
+        logger.info(
+            f"Supabase config (test-publish): url_set={bool(settings.SUPABASE_URL)}, srk_len={len(service_key)}"
+        )
+        headers = {
+            "apikey": service_key,
+            "Authorization": f"Bearer {service_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Create published newsletter
+        async with httpx.AsyncClient() as client:
+            published_response = await client.post(
+                f"{settings.SUPABASE_URL}/rest/v1/newsletters",
+                headers=headers,
+                json=published_newsletter_data
+            )
+            
+            if published_response.status_code == 201:
+                logger.info(f"Test newsletter published successfully with ID: {published_newsletter_data['id']}")
+                
+                return {
+                    "success": True,
+                    "message": f"Newsletter published successfully and sent to allands365@gmail.com",
+                    "newsletter_id": published_newsletter_data["id"],
+                    "email_sent": email_sent
+                }
+            else:
+                logger.error(f"Failed to create newsletter: {published_response.status_code}")
+                logger.error(f"Response: {published_response.text}")
+                raise HTTPException(status_code=500, detail="Failed to save newsletter")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in test newsletter publishing: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error details: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while publishing the newsletter: {str(e)}"
+        )
 
 async def get_current_user(
     current_user: Dict[str, Any] = Depends(get_current_user_supabase)
@@ -143,7 +262,7 @@ async def generate_newsletter(
 
                 # Add user_id filter to ensure we only get articles for this user
                 params["user_id"] = f"eq.{current_user['id']}"
-                
+
                 # Query articles
                 logger.info(f"Request min_quality: {request.min_quality}, min_word_count: {request.min_word_count}")
                 logger.info(f"Querying articles with params: {params}")
@@ -642,13 +761,16 @@ async def publish_newsletter_direct(
         # Send email to user
         from app.services.email_service import EmailService
         email_service = EmailService()
-        
-        # Send to user's email (allands365@gmail.com for testing)
-        email_sent = await email_service.send_email_to_address(
-            to="allands365@gmail.com",
-            newsletter=newsletter_content
-        )
-        
+        # Initialize default email_sent and attempt send
+        email_sent = False
+        try:
+            email_sent = await email_service.send_email_to_address(
+                to="allands365@gmail.com",
+                newsletter=newsletter_content
+            )
+        except Exception as email_error:
+            logger.error(f"Error sending newsletter email (continuing without email): {email_error}")
+            email_sent = False
         if not email_sent:
             logger.warning("Failed to send email for newsletter")
         
@@ -674,7 +796,7 @@ async def publish_newsletter_direct(
             "click_rate": int((newsletter_data.click_rate or 0.0) * 100),
             "estimated_read_time": newsletter_data.estimated_read_time or "5 minutes",
             "tags": newsletter_data.tags or [],
-            "published_at": datetime.utcnow().isoformat()
+            "published_at": datetime.now(timezone.utc).isoformat()
         }
         
         # Create draft newsletter data
@@ -697,10 +819,22 @@ async def publish_newsletter_direct(
             "tags": newsletter_data.tags or []
         }
         
-        # Use service role key for server-side operations
+        # Use service role key for server-side operations (with env fallbacks)
+        import os as _os
+        service_key = (
+            settings.SUPABASE_SERVICE_ROLE_KEY
+            or _os.getenv("SUPABASE_SERVICE_KEY")
+            or _os.getenv("SERVICE_ROLE_KEY")
+        )
+        if not settings.SUPABASE_URL or not service_key:
+            logger.error("Missing SUPABASE_URL or service role key in settings/env (publish-direct)")
+            raise HTTPException(status_code=500, detail="Server configuration error: Supabase credentials missing")
+        logger.info(
+            f"Supabase config (publish-direct): url_set={bool(settings.SUPABASE_URL)}, srk_len={len(service_key)}"
+        )
         headers = {
-            "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
-            "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+            "apikey": service_key,
+            "Authorization": f"Bearer {service_key}",
             "Content-Type": "application/json"
         }
         
@@ -836,25 +970,25 @@ async def create_newsletter(
     # Debug logging
     logger.info(f"Creating newsletter with data: title={newsletter_data.title}, subject={newsletter_data.subject}")
     logger.info(f"Content type: {type(newsletter_data.content)}, length: {len(newsletter_data.content) if newsletter_data.content else 0}")
-    
+
     # Validate required fields
     if not newsletter_data.title or not newsletter_data.title.strip():
         raise HTTPException(status_code=422, detail="Title is required and cannot be empty")
-    
+
     if not newsletter_data.subject or not newsletter_data.subject.strip():
         raise HTTPException(status_code=422, detail="Subject is required and cannot be empty")
-    
+
     if not newsletter_data.content or not newsletter_data.content.strip():
         raise HTTPException(status_code=422, detail="Content is required and cannot be empty")
-    
+
     # Try to parse content as JSON to validate it
     try:
         import json
         import re
-        
+
         # Clean the content to extract JSON from markdown code blocks
         content_to_parse = newsletter_data.content.strip()
-        
+
         # Remove markdown code blocks if present
         if content_to_parse.startswith('```json'):
             # Extract JSON from markdown code block
@@ -866,17 +1000,17 @@ async def create_newsletter(
             json_match = re.search(r'```\s*(.*?)\s*```', content_to_parse, re.DOTALL)
             if json_match:
                 content_to_parse = json_match.group(1).strip()
-        
+
         parsed_content = json.loads(content_to_parse)
         logger.info(f"Content parsed successfully: {type(parsed_content)}")
-        
+
         # Update the content with the cleaned JSON
         newsletter_data.content = content_to_parse
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON content: {e}")
         raise HTTPException(status_code=422, detail=f"Content must be valid JSON: {str(e)}")
-    
+        
     # Use Supabase REST API directly (bypasses database connection issues)
     logger.info("Using Supabase REST API for newsletter creation")
     
@@ -904,7 +1038,7 @@ async def create_newsletter(
             "estimated_read_time": newsletter_data.estimated_read_time or "5 minutes",
             "tags": newsletter_data.tags or []
         }
-        
+            
         # Use service role key for server-side operations
         headers = {
             "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,

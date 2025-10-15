@@ -104,8 +104,11 @@ npm run dev
 
 ## 🔄 Recent Changes
 
-- Frontend RSS page now requests articles with `prefer_images=true` by default to prioritize entries with images.
-- Fixed async auth headers in RSS Source modal save path by awaiting `getAuthHeaders()`.
+- Added `/api/v1/test-newsletter-generate` to support no-auth dev generation with curated RSS articles (service-role).
+- Added `/api/v1/newsletters/test-publish` to support no-auth dev publishing. Use `?test=true` in the create page.
+- Backend now reads service role key from `SUPABASE_SERVICE_ROLE_KEY` (preferred) or fallbacks `SUPABASE_SERVICE_KEY`/`SERVICE_ROLE_KEY`.
+- Added `/debug/env` to inspect loaded environment values (masked).
+- Hardened Grok JSON parsing and added explicit prompt rules for valid JSON.
 
 ## 📝 Notes
 

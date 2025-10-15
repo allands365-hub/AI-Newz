@@ -4,6 +4,7 @@ import './globals.css';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { AppLayout } from '@/components/layout';
 import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from '@/components/providers/ThemeProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -33,11 +34,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className={`${inter.className} h-full`}>
-        <AuthProvider>
-          <AppLayout>
-            {children}
-          </AppLayout>
-          <Toaster
+        <ThemeProvider>
+          <AuthProvider>
+            <AppLayout>
+              {children}
+            </AppLayout>
+            <Toaster
             position="top-right"
             toastOptions={{
               duration: 4000,
@@ -62,7 +64,8 @@ export default function RootLayout({
               },
             }}
           />
-        </AuthProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

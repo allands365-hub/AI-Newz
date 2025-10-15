@@ -30,8 +30,8 @@ AI-powered newsletter creation platform with RSS feed integration, content analy
 
 ### Prerequisites
 
-- Python 3.8+
-- Node.js 16+
+- Python 3.10+
+- Node.js 18+
 - PostgreSQL database (via Supabase)
 
 ### Installation
@@ -48,8 +48,30 @@ AI-powered newsletter creation platform with RSS feed integration, content analy
    ```
 
 3. **Configure environment variables:**
-   - Copy `env.example` to `env.local`
-   - Add your Supabase credentials
+   - Create a backend `.env` at the project root (same folder as `app/` and `start.py`). Keys are case-insensitive.
+   - Required variables (backend):
+     ```bash
+     # Supabase
+     SUPABASE_URL=https://YOUR_REF.supabase.co
+     SUPABASE_ANON_KEY=your-anon-key
+     # Service role key (any of these will be read; prefer the first)
+     SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+     SUPABASE_SERVICE_KEY=your-service-role-key
+     SERVICE_ROLE_KEY=your-service-role-key
+
+     # Database
+     DATABASE_URL=postgresql://user:password@host:5432/dbname
+     
+     # Email (Resend). For production sending, verify your domain in Resend
+     RESEND_API_KEY=your-resend-key
+     FROM_EMAIL=noreply@yourdomain.com
+     FROM_NAME=AI-Newz
+
+     # Grok (LLM)
+     GROK_API_KEY=your-grok-key
+     GROK_API_URL=https://api.groq.com/openai/v1
+     ```
+   - Frontend uses `frontend/.env.local` as usual for public vars if needed.
 
 4. **Start the servers:**
    ```bash
@@ -81,8 +103,8 @@ GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/auth/google/callback
 
-# JWT
-JWT_SECRET_KEY=your_jwt_secret_key
+# JWT (legacy; Supabase handles auth)
+JWT_SECRET_KEY=optional
 JWT_ALGORITHM=HS256
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
 ```
@@ -104,11 +126,12 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id
 
 ### Key Endpoints
 
-- `POST /api/v1/auth/google` - Google OAuth authentication
-- `POST /api/v1/auth/google/verify` - Verify Google ID token
 - `GET /api/v1/auth/me` - Get current user
 - `POST /api/v1/newsletters/generate` - Generate newsletter
-- `GET /api/v1/content/articles` - Get content feed
+- `POST /api/v1/newsletters/publish-direct` - Publish newsletter (auth required)
+- `POST /api/v1/newsletters/test-publish` - Test publish (no auth; dev only)
+- `POST /api/v1/test-newsletter-generate` - Test generate (no auth; dev only)
+- `GET /debug/env` - Inspect loaded environment (masks secrets)
 
 ## 🎨 UI Components
 
@@ -225,3 +248,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **AI-Newz** - Turn hours of research into minutes of content. 🚀
+
+## 🧩 Development Notes
+
+- The backend defensively cleans and parses LLM JSON outputs. You may still see warnings if upstream returns unescaped quotes; a robust fallback ensures a valid structure is returned to the UI.
+- The backend reads the service role key from `SUPABASE_SERVICE_ROLE_KEY` (preferred) or fallbacks `SUPABASE_SERVICE_KEY` / `SERVICE_ROLE_KEY`.
+- For development without auth, append `?test=true` to `http://localhost:3000/newsletter/create` to use the test endpoints.
+- Email sending requires verifying your sending domain in Resend; failures are non-fatal in dev and do not block saving/publishing.

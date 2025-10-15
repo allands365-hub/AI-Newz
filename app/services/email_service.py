@@ -48,7 +48,16 @@ class EmailService:
             }
             
             # Send email using Resend
-            response = resend.Emails.send(email_data)
+            try:
+                response = resend.Emails.send(email_data)
+            except Exception as resend_error:
+                # Surface common domain verification error clearly but don't throw
+                msg = str(resend_error)
+                if "domain is not verified" in msg.lower() or "not verified" in msg.lower():
+                    logger.error("Error sending newsletter: The sending domain is not verified with Resend. Please verify the domain in Resend dashboard.")
+                else:
+                    logger.error(f"Resend send error: {msg}")
+                return False
             
             if response and response.get("id"):
                 logger.info(f"Newsletter sent successfully to {recipient_email}. Email ID: {response['id']}")

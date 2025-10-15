@@ -72,9 +72,23 @@ class GrokService:
             }
             
             # Make the API request
-            print(f"Making request to: {self.api_url}/chat/completions")
-            print(f"Headers: {self.headers}")
-            print(f"Payload: {payload}")
+            # Debug logs with masked credentials
+            try:
+                masked_headers = {**self.headers}
+                if "Authorization" in masked_headers and isinstance(masked_headers["Authorization"], str):
+                    token = masked_headers["Authorization"]
+                    # keep prefix, mask token body
+                    if token.lower().startswith("bearer "):
+                        bearer, key = token.split(" ", 1)
+                        masked_headers["Authorization"] = f"{bearer} {key[:6]}***"
+                    else:
+                        masked_headers["Authorization"] = "***"
+                print(f"Making request to: {self.api_url}/chat/completions")
+                print(f"Headers: {masked_headers}")
+                print(f"Payload: {payload}")
+            except Exception:
+                # Never allow debug printing to break the request
+                pass
             
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
@@ -191,6 +205,13 @@ Create a newsletter about "{topic}" with the following specifications:
     "estimated_read_time": "X minutes",
     "tags": ["tag1", "tag2", "tag3"]
 }}
+
+**IMPORTANT JSON RULES**:
+- All string values must be properly escaped
+- Use double quotes for all keys and string values
+- Escape any quotes within string values with backslashes (e.g., "He said \\"Hello\\"")
+- Do not include any unescaped quotes within JSON string values
+- Ensure the JSON is valid and parseable
 
 Make sure the newsletter is engaging, informative, and provides real value to readers interested in {topic}.
 """
@@ -337,6 +358,25 @@ Make sure the newsletter is engaging, informative, and provides real value to re
             cleaned_json = re.sub(r'(\w+):', r'"\1":', cleaned_json)
             
             # Additional fix for malformed JSON with escaped quotes
+            # Fix the specific pattern we're seeing: "subject": "Revolutionizing "Business": The Power..."
+            # This handles unescaped quotes within JSON string values
+            def fix_unescaped_quotes_in_strings(text):
+                import re
+                # Pattern to match JSON string values that contain unescaped quotes
+                # Matches: "key": "value with "quotes" inside"
+                def fix_string_value(match):
+                    key = match.group(1)
+                    value = match.group(2)
+                    # Escape any unescaped quotes within the value
+                    value = value.replace('"', '\\"')
+                    return f'"{key}": "{value}"'
+                
+                # Match JSON key-value pairs where the value contains unescaped quotes
+                pattern = r'"([^"]+)":\s*"([^"]*"[^"]*)"'
+                return re.sub(pattern, fix_string_value, text)
+            
+            cleaned_json = fix_unescaped_quotes_in_strings(cleaned_json)
+            
             # Fix patterns like "subject\": \"value\"" to "subject": "value"
             cleaned_json = re.sub(r'"([^"]+)\\\":\s*\\"([^"]+)\\"', r'"\1": "\2"', cleaned_json)
             
@@ -361,6 +401,19 @@ Make sure the newsletter is engaging, informative, and provides real value to re
             
             # Debug: Log the cleaned JSON for troubleshooting
             logger.info(f"Cleaned JSON content: {cleaned_json[:500]}...")
+            
+            # Additional validation: check for common JSON issues
+            if cleaned_json.count('{') != cleaned_json.count('}'):
+                logger.warning("Mismatched braces in JSON, attempting to fix")
+                # Try to balance braces
+                open_braces = cleaned_json.count('{')
+                close_braces = cleaned_json.count('}')
+                if open_braces > close_braces:
+                    cleaned_json += '}' * (open_braces - close_braces)
+                elif close_braces > open_braces:
+                    # Remove excess closing braces from the end
+                    for _ in range(close_braces - open_braces):
+                        cleaned_json = cleaned_json.rstrip().rstrip('}')
             
             # Try to parse the JSON
             try:

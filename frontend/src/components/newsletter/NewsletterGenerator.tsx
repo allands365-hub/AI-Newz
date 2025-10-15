@@ -172,7 +172,8 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
     setPublishSuccess(null);
 
     try {
-      const headers = await getAuthHeaders();
+      // Check if we're in test mode (no authentication required)
+      const isTestMode = process.env.NODE_ENV === 'development' && window.location.search.includes('test=true');
       
       // Prepare newsletter data for direct publishing
       const newsletterContent = {
@@ -194,11 +195,24 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
         estimated_read_time: generatedNewsletter.newsletter?.estimated_read_time || "5 minutes"
       };
 
-      const response = await fetch(API_ENDPOINTS.NEWSLETTERS.PUBLISH_DIRECT, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(newsletterData)
-      });
+      let response;
+      if (isTestMode) {
+        console.log('🧪 Test mode: Using test publish endpoint without authentication');
+        response = await fetch(API_ENDPOINTS.NEWSLETTERS.TEST_PUBLISH, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newsletterData)
+        });
+      } else {
+        const headers = await getAuthHeaders();
+        response = await fetch(API_ENDPOINTS.NEWSLETTERS.PUBLISH_DIRECT, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(newsletterData)
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
