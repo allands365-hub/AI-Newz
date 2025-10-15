@@ -78,18 +78,6 @@ const Navigation = () => {
       description: 'View performance metrics'
     },
     {
-      name: 'Email Settings',
-      href: '/email-settings',
-      icon: Mail,
-      description: 'Configure email preferences'
-    },
-    {
-      name: 'Profile',
-      href: '/profile',
-      icon: User,
-      description: 'Manage your account'
-    },
-    {
       name: 'Settings',
       href: '/settings',
       icon: Settings,

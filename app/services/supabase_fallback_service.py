@@ -16,7 +16,8 @@ class SupabaseFallbackService:
     
     def __init__(self):
         self.supabase_url = settings.SUPABASE_URL
-        self.supabase_key = settings.SUPABASE_ANON_KEY
+        # Use service role key for server-side operations to bypass RLS
+        self.supabase_key = settings.SUPABASE_SERVICE_ROLE_KEY or settings.SUPABASE_ANON_KEY
         self.headers = {
             "apikey": self.supabase_key,
             "Authorization": f"Bearer {self.supabase_key}",

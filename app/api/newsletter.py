@@ -18,6 +18,8 @@ from app.schemas.newsletter import (
     NewsletterCreate,
     NewsletterUpdate,
     NewsletterResponse,
+    NewsletterContent,
+    NewsletterSection,
     NewsletterGenerateRequest,
     NewsletterGenerateResponse
 )
@@ -86,7 +88,8 @@ async def get_current_user(
 @router.post("/generate", response_model=NewsletterGenerateResponse)
 async def generate_newsletter(
     request: NewsletterGenerateRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """Generate a new AI-powered newsletter using Grok"""
     try:
@@ -103,9 +106,13 @@ async def generate_newsletter(
         
         # Optionally fetch curated RSS articles via Supabase REST
         curated_articles: List[Dict[str, Any]] = []
-        if getattr(request, "use_rss", False):
+        logger.info(f"Newsletter Generation: use_rss={request.use_rss}, topic={request.topic}")
+        
+        if request.use_rss:
+            logger.info("Fetching RSS articles for newsletter")
             try:
-                supa_rss = SupabaseRSSService()
+                # Use service role key for newsletter generation (bypasses RLS but we filter by user_id)
+                supa_rss = SupabaseRSSService(use_service_role=True)
                 params = {
                     "select": "id,title,url,summary,author,published_at,rss_source_id,quality_score,word_count,tags,image_url,category",
                     "is_active": "eq.true",
@@ -134,7 +141,12 @@ async def generate_newsletter(
                     since_dt = datetime.now(timezone.utc) - timedelta(days=request.since_days)
                     params["published_at"] = f"gte.{since_dt.isoformat()}"
 
+                # Add user_id filter to ensure we only get articles for this user
+                params["user_id"] = f"eq.{current_user['id']}"
+                
                 # Query articles
+                logger.info(f"Request min_quality: {request.min_quality}, min_word_count: {request.min_word_count}")
+                logger.info(f"Querying articles with params: {params}")
                 async with httpx.AsyncClient() as client:
                     response = await client.get(
                         f"{supa_rss.supabase_url}/rest/v1/articles",
@@ -143,6 +155,9 @@ async def generate_newsletter(
                     )
                     response.raise_for_status()
                     articles = response.json()
+                    logger.info(f"Found {len(articles)} articles for newsletter generation")
+                    if articles:
+                        logger.info(f"First article: {articles[0].get('title', 'No title')}")
 
                 # Optional: enforce per-source cap
                 if request.per_source_cap:
@@ -194,8 +209,9 @@ async def generate_newsletter(
                     {k: v for k, v in a.items() if k in include_set or k in ("id","rss_source_id","published_at")}
                     for a in deduped[: request.rss_limit]
                 ]
+                logger.info(f"Successfully curated {len(curated_articles)} articles")
             except Exception as e:
-                logger.warning(f"RSS curation skipped due to error: {e}")
+                logger.error(f"RSS curation failed: {e}", exc_info=True)
                 curated_articles = []
 
         # Generate the newsletter
@@ -283,6 +299,8 @@ async def generate_newsletter(
         except Exception as e:
             logger.warning(f"Failed to mark included articles as used: {e}")
 
+        logger.info(f"Returning newsletter with {len(curated_articles or [])} included articles")
+        
         return NewsletterGenerateResponse(
             success=True,
             newsletter=result["newsletter"],
@@ -290,7 +308,7 @@ async def generate_newsletter(
             model_used=result.get("model_used", "llama-3.1-70b-versatile"),
             tokens_used=result.get("tokens_used", 0),
             raw_content=result.get("raw_content", ""),
-            included_articles=curated_articles or None
+            included_articles=curated_articles if curated_articles else None
         )
         
     except Exception as e:
@@ -375,7 +393,90 @@ async def get_newsletters(
 
         # Pagination
         paged = items[skip: skip + limit]
-        return paged
+        
+        # Convert to NewsletterResponse format
+        newsletters = []
+        for item in paged:
+            try:
+                # Parse content if it's a string
+                content = item.get("content", {})
+                if isinstance(content, str):
+                    import json
+                    try:
+                        content = json.loads(content)
+                    except json.JSONDecodeError:
+                        content = {
+                            "subject": item.get("subject", ""),
+                            "opening": "",
+                            "sections": [],
+                            "call_to_action": "",
+                            "estimated_read_time": item.get("estimated_read_time", "5 minutes"),
+                            "tags": item.get("tags", [])
+                        }
+                
+                # Ensure content has required fields for NewsletterContent
+                if not isinstance(content, dict):
+                    content = {
+                        "subject": item.get("subject", ""),
+                        "opening": "",
+                        "sections": [],
+                        "call_to_action": "",
+                        "estimated_read_time": item.get("estimated_read_time", "5 minutes"),
+                        "tags": item.get("tags", [])
+                    }
+                
+                # Ensure sections is a list of dicts
+                if "sections" not in content or not isinstance(content["sections"], list):
+                    content["sections"] = []
+                
+                # Convert sections to NewsletterSection objects
+                sections = []
+                for section in content.get("sections", []):
+                    if isinstance(section, dict):
+                        sections.append(NewsletterSection(
+                            title=section.get("title", ""),
+                            content=section.get("content", ""),
+                            type=section.get("type", "main")
+                        ))
+                
+                # Create NewsletterContent object
+                newsletter_content = NewsletterContent(
+                    subject=content.get("subject", item.get("subject", "")),
+                    opening=content.get("opening", ""),
+                    sections=sections,
+                    call_to_action=content.get("call_to_action", ""),
+                    estimated_read_time=content.get("estimated_read_time", item.get("estimated_read_time", "5 minutes")),
+                    tags=content.get("tags", item.get("tags", []))
+                )
+                
+                newsletter = {
+                    "id": item.get("id"),
+                    "user_id": item.get("user_id"),
+                    "title": item.get("title"),
+                    "subject": item.get("subject"),
+                    "content": newsletter_content,
+                    "status": item.get("status"),
+                    "style": item.get("style"),
+                    "length": item.get("length"),
+                    "estimated_read_time": item.get("estimated_read_time"),
+                    "tags": item.get("tags", []),
+                    "ai_model_used": item.get("ai_model_used"),
+                    "tokens_used": item.get("tokens_used", 0),
+                    "open_rate": item.get("open_rate", 0),
+                    "click_rate": item.get("click_rate", 0),
+                    "subscribers_count": item.get("subscribers_count", 0),
+                    "views_count": item.get("views_count", 0),
+                    "created_at": item.get("created_at"),
+                    "updated_at": item.get("updated_at"),
+                    "published_at": item.get("published_at"),
+                    "scheduled_at": item.get("scheduled_at")
+                }
+                newsletters.append(newsletter)
+            except Exception as e:
+                logger.error(f"Error processing newsletter {item.get('id')}: {e}")
+                continue
+        
+        return newsletters
 
     except HTTPException:
         raise
@@ -514,13 +615,142 @@ async def delete_newsletter(
             detail="An error occurred while deleting the newsletter"
         )
 
+@router.post("/publish-direct")
+async def publish_newsletter_direct(
+    newsletter_data: NewsletterCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Publish a newsletter directly without saving to draft first"""
+    try:
+        # Validate required fields
+        if not newsletter_data.title or not newsletter_data.title.strip():
+            raise HTTPException(status_code=422, detail="Title is required and cannot be empty")
+        
+        if not newsletter_data.subject or not newsletter_data.subject.strip():
+            raise HTTPException(status_code=422, detail="Subject is required and cannot be empty")
+        
+        if not newsletter_data.content or not newsletter_data.content.strip():
+            raise HTTPException(status_code=422, detail="Content is required and cannot be empty")
+        
+        # Parse content for email sending
+        import json
+        try:
+            newsletter_content = json.loads(newsletter_data.content) if isinstance(newsletter_data.content, str) else newsletter_data.content
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=422, detail="Invalid JSON content")
+        
+        # Send email to user
+        from app.services.email_service import EmailService
+        email_service = EmailService()
+        
+        # Send to user's email (allands365@gmail.com for testing)
+        email_sent = await email_service.send_email_to_address(
+            to="allands365@gmail.com",
+            newsletter=newsletter_content
+        )
+        
+        if not email_sent:
+            logger.warning("Failed to send email for newsletter")
+        
+        # Create published newsletter using Supabase REST API
+        import httpx
+        import uuid
+        from app.core.config import settings
+        
+        published_newsletter_data = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user["id"],
+            "title": newsletter_data.title.strip(),
+            "subject": newsletter_data.subject.strip(),
+            "content": newsletter_data.content,
+            "status": "published",
+            "style": newsletter_data.style or "professional",
+            "length": newsletter_data.length or "medium",
+            "ai_model_used": newsletter_data.ai_model_used or "llama-3.1-70b-versatile",
+            "tokens_used": 0,
+            "subscribers_count": newsletter_data.subscribers_count or 0,
+            "views_count": newsletter_data.views_count or 0,
+            "open_rate": int((newsletter_data.open_rate or 0.0) * 100),
+            "click_rate": int((newsletter_data.click_rate or 0.0) * 100),
+            "estimated_read_time": newsletter_data.estimated_read_time or "5 minutes",
+            "tags": newsletter_data.tags or [],
+            "published_at": datetime.utcnow().isoformat()
+        }
+        
+        # Create draft newsletter data
+        draft_newsletter_data = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user["id"],
+            "title": f"Draft: {newsletter_data.title.strip()}",
+            "subject": newsletter_data.subject.strip(),
+            "content": newsletter_data.content,
+            "status": "draft",
+            "style": newsletter_data.style or "professional",
+            "length": newsletter_data.length or "medium",
+            "ai_model_used": newsletter_data.ai_model_used or "llama-3.1-70b-versatile",
+            "tokens_used": 0,
+            "subscribers_count": 0,
+            "views_count": 0,
+            "open_rate": 0,
+            "click_rate": 0,
+            "estimated_read_time": newsletter_data.estimated_read_time or "5 minutes",
+            "tags": newsletter_data.tags or []
+        }
+        
+        # Use service role key for server-side operations
+        headers = {
+            "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        # Create both published and draft newsletters
+        async with httpx.AsyncClient() as client:
+            # Create published newsletter
+            published_response = await client.post(
+                f"{settings.SUPABASE_URL}/rest/v1/newsletters",
+                headers=headers,
+                json=published_newsletter_data
+            )
+            
+            # Create draft newsletter
+            draft_response = await client.post(
+                f"{settings.SUPABASE_URL}/rest/v1/newsletters",
+                headers=headers,
+                json=draft_newsletter_data
+            )
+            
+            if published_response.status_code == 201 and draft_response.status_code == 201:
+                logger.info(f"Newsletter published successfully with ID: {published_newsletter_data['id']}")
+                logger.info(f"Draft saved with ID: {draft_newsletter_data['id']}")
+                
+                return {
+                    "success": True,
+                    "message": f"Newsletter published successfully and sent to allands365@gmail.com. Also saved as draft.",
+                    "newsletter_id": published_newsletter_data["id"],
+                    "draft_id": draft_newsletter_data["id"],
+                    "email_sent": email_sent
+                }
+            else:
+                logger.error(f"Failed to create newsletters: published={published_response.status_code}, draft={draft_response.status_code}")
+                raise HTTPException(status_code=500, detail="Failed to save newsletters")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error publishing newsletter directly: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while publishing the newsletter"
+        )
+
 @router.post("/{newsletter_id}/publish")
 async def publish_newsletter(
     newsletter_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Publish a newsletter"""
+    """Publish a newsletter and send via email"""
     try:
         newsletter = db.query(Newsletter).filter(
             Newsletter.id == newsletter_id,
@@ -533,17 +763,59 @@ async def publish_newsletter(
                 detail="Newsletter not found"
             )
         
+        if newsletter.status == "published":
+            raise HTTPException(
+                status_code=400,
+                detail="Newsletter is already published"
+            )
+        
+        # Parse newsletter content for email sending
+        import json
+        newsletter_content = json.loads(newsletter.content) if isinstance(newsletter.content, str) else newsletter.content
+        
+        # Send email to user
+        from app.services.email_service import EmailService
+        email_service = EmailService()
+        
+        # Send to user's email (allands365@gmail.com for testing)
+        email_sent = await email_service.send_email_to_address(
+            to="allands365@gmail.com",
+            newsletter=newsletter_content
+        )
+        
+        if not email_sent:
+            logger.warning(f"Failed to send email for newsletter {newsletter_id}")
+        
+        # Update newsletter status
         newsletter.status = "published"
         newsletter.published_at = datetime.utcnow()
         newsletter.updated_at = datetime.utcnow()
         
+        # Auto-save to drafts as well
+        draft_newsletter = Newsletter(
+            title=f"Draft: {newsletter.title}",
+            subject=newsletter.subject,
+            content=newsletter.content,
+            status="draft",
+            user_id=current_user["id"],
+            tags=newsletter.tags,
+            subscribers_count=0,
+            views_count=0,
+            open_rate=0.0,
+            click_rate=0.0
+        )
+        
+        db.add(draft_newsletter)
         db.commit()
         db.refresh(newsletter)
+        db.refresh(draft_newsletter)
         
         return {
             "success": True,
-            "message": "Newsletter published successfully",
-            "newsletter": newsletter.to_dict()
+            "message": f"Newsletter published successfully and sent to allands365@gmail.com. Also saved as draft.",
+            "newsletter": newsletter.to_dict(),
+            "draft_id": draft_newsletter.id,
+            "email_sent": email_sent
         }
         
     except HTTPException:
@@ -558,124 +830,151 @@ async def publish_newsletter(
 @router.post("/", response_model=NewsletterResponse)
 async def create_newsletter(
     newsletter_data: NewsletterCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """Create a new newsletter"""
+    # Debug logging
+    logger.info(f"Creating newsletter with data: title={newsletter_data.title}, subject={newsletter_data.subject}")
+    logger.info(f"Content type: {type(newsletter_data.content)}, length: {len(newsletter_data.content) if newsletter_data.content else 0}")
+    
+    # Validate required fields
+    if not newsletter_data.title or not newsletter_data.title.strip():
+        raise HTTPException(status_code=422, detail="Title is required and cannot be empty")
+    
+    if not newsletter_data.subject or not newsletter_data.subject.strip():
+        raise HTTPException(status_code=422, detail="Subject is required and cannot be empty")
+    
+    if not newsletter_data.content or not newsletter_data.content.strip():
+        raise HTTPException(status_code=422, detail="Content is required and cannot be empty")
+    
+    # Try to parse content as JSON to validate it
     try:
-        # Debug logging
-        logger.info(f"Creating newsletter with data: title={newsletter_data.title}, subject={newsletter_data.subject}")
-        logger.info(f"Content type: {type(newsletter_data.content)}, length: {len(newsletter_data.content) if newsletter_data.content else 0}")
+        import json
+        import re
         
-        # Validate required fields
-        if not newsletter_data.title or not newsletter_data.title.strip():
-            raise HTTPException(status_code=422, detail="Title is required and cannot be empty")
+        # Clean the content to extract JSON from markdown code blocks
+        content_to_parse = newsletter_data.content.strip()
         
-        if not newsletter_data.subject or not newsletter_data.subject.strip():
-            raise HTTPException(status_code=422, detail="Subject is required and cannot be empty")
+        # Remove markdown code blocks if present
+        if content_to_parse.startswith('```json'):
+            # Extract JSON from markdown code block
+            json_match = re.search(r'```json\s*(.*?)\s*```', content_to_parse, re.DOTALL)
+            if json_match:
+                content_to_parse = json_match.group(1).strip()
+        elif content_to_parse.startswith('```'):
+            # Extract JSON from generic code block
+            json_match = re.search(r'```\s*(.*?)\s*```', content_to_parse, re.DOTALL)
+            if json_match:
+                content_to_parse = json_match.group(1).strip()
         
-        if not newsletter_data.content or not newsletter_data.content.strip():
-            raise HTTPException(status_code=422, detail="Content is required and cannot be empty")
+        parsed_content = json.loads(content_to_parse)
+        logger.info(f"Content parsed successfully: {type(parsed_content)}")
         
-        # Try to parse content as JSON to validate it
-        try:
-            import json
-            import re
-            
-            # Clean the content to extract JSON from markdown code blocks
-            content_to_parse = newsletter_data.content.strip()
-            
-            # Remove markdown code blocks if present
-            if content_to_parse.startswith('```json'):
-                # Extract JSON from markdown code block
-                json_match = re.search(r'```json\s*(.*?)\s*```', content_to_parse, re.DOTALL)
-                if json_match:
-                    content_to_parse = json_match.group(1).strip()
-            elif content_to_parse.startswith('```'):
-                # Extract JSON from generic code block
-                json_match = re.search(r'```\s*(.*?)\s*```', content_to_parse, re.DOTALL)
-                if json_match:
-                    content_to_parse = json_match.group(1).strip()
-            
-            parsed_content = json.loads(content_to_parse)
-            logger.info(f"Content parsed successfully: {type(parsed_content)}")
-            
-            # Update the content with the cleaned JSON
-            newsletter_data.content = content_to_parse
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON content: {e}")
-            raise HTTPException(status_code=422, detail=f"Content must be valid JSON: {str(e)}")
+        # Update the content with the cleaned JSON
+        newsletter_data.content = content_to_parse
         
-        # Check if we have a real database connection
-        if hasattr(db, 'add') and hasattr(db, 'commit'):
-            # Use regular database connection
-            newsletter = Newsletter(
-                user_id=current_user["id"],
-                title=newsletter_data.title.strip(),
-                subject=newsletter_data.subject.strip(),  # Use subject field directly
-                content=newsletter_data.content,  # Already a dict, will be converted to jsonb
-                status=newsletter_data.status or "draft",
-                style=newsletter_data.style or "professional",
-                length=newsletter_data.length or "medium",
-                ai_model_used=newsletter_data.ai_model_used or "llama-3.1-70b-versatile",
-                tokens_used=0,  # Default value
-                subscribers_count=newsletter_data.subscribers_count or 0,
-                views_count=newsletter_data.views_count or 0,
-                open_rate=newsletter_data.open_rate or 0.0,
-                click_rate=newsletter_data.click_rate or 0.0,
-                estimated_read_time=newsletter_data.estimated_read_time or "5 minutes",
-                tags=newsletter_data.tags or []
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON content: {e}")
+        raise HTTPException(status_code=422, detail=f"Content must be valid JSON: {str(e)}")
+    
+    # Use Supabase REST API directly (bypasses database connection issues)
+    logger.info("Using Supabase REST API for newsletter creation")
+    
+    try:
+        import httpx
+        import uuid
+        from app.core.config import settings
+        
+        # Prepare newsletter data for Supabase
+        newsletter_data_dict = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user["id"],
+            "title": newsletter_data.title.strip(),
+            "subject": newsletter_data.subject.strip(),
+            "content": newsletter_data.content,
+            "status": newsletter_data.status or "draft",
+            "style": newsletter_data.style or "professional",
+            "length": newsletter_data.length or "medium",
+            "ai_model_used": newsletter_data.ai_model_used or "llama-3.1-70b-versatile",
+            "tokens_used": 0,
+            "subscribers_count": newsletter_data.subscribers_count or 0,
+            "views_count": newsletter_data.views_count or 0,
+            "open_rate": int((newsletter_data.open_rate or 0.0) * 100),  # Convert to integer percentage
+            "click_rate": int((newsletter_data.click_rate or 0.0) * 100),  # Convert to integer percentage
+            "estimated_read_time": newsletter_data.estimated_read_time or "5 minutes",
+            "tags": newsletter_data.tags or []
+        }
+        
+        # Use service role key for server-side operations
+        headers = {
+            "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        # Make direct API call to Supabase
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.SUPABASE_URL}/rest/v1/newsletters",
+                headers=headers,
+                json=newsletter_data_dict
             )
             
-            db.add(newsletter)
-            db.commit()
-            db.refresh(newsletter)
-            
-            logger.info(f"Newsletter created successfully with ID: {newsletter.id}")
-            return newsletter.to_dict()
-        else:
-            # Use Supabase fallback service
-            logger.info("Using Supabase fallback service for newsletter creation")
-            
-            newsletter_data_dict = {
-                "user_id": current_user["id"],
-                "title": newsletter_data.title.strip(),
-                "subject": newsletter_data.subject.strip(),
-                "content": newsletter_data.content,
-                "status": newsletter_data.status or "draft",
-                "style": newsletter_data.style or "professional",
-                "length": newsletter_data.length or "medium",
-                "ai_model_used": newsletter_data.ai_model_used or "llama-3.1-70b-versatile",
-                "tokens_used": 0,
-                "subscribers_count": newsletter_data.subscribers_count or 0,
-                "views_count": newsletter_data.views_count or 0,
-                "open_rate": newsletter_data.open_rate or 0.0,
-                "click_rate": newsletter_data.click_rate or 0.0,
-                "estimated_read_time": newsletter_data.estimated_read_time or "5 minutes",
-                "tags": newsletter_data.tags or []
-            }
-            
-            result = await supabase_fallback.create_newsletter(newsletter_data_dict)
-            
-            if "error" in result:
-                raise HTTPException(status_code=500, detail=result["error"])
-            
-            logger.info(f"Newsletter created successfully via Supabase fallback with ID: {result['id']}")
-            return result
-        
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
+            if response.status_code == 201:
+                logger.info(f"Newsletter created successfully via Supabase REST API with ID: {newsletter_data_dict['id']}")
+                
+                # Parse the content back to NewsletterContent format
+                import json
+                try:
+                    content_data = json.loads(newsletter_data_dict["content"])
+                    content_obj = {
+                        "subject": content_data.get("subject", newsletter_data_dict["subject"]),
+                        "opening": content_data.get("opening", ""),
+                        "sections": content_data.get("sections", []),
+                        "call_to_action": content_data.get("call_to_action", ""),
+                        "estimated_read_time": content_data.get("estimated_read_time", newsletter_data_dict["estimated_read_time"]),
+                        "tags": content_data.get("tags", newsletter_data_dict["tags"])
+                    }
+                except:
+                    # Fallback if content parsing fails
+                    content_obj = {
+                        "subject": newsletter_data_dict["subject"],
+                        "opening": "",
+                        "sections": [],
+                        "call_to_action": "",
+                        "estimated_read_time": newsletter_data_dict["estimated_read_time"],
+                        "tags": newsletter_data_dict["tags"]
+                    }
+                
+                return {
+                    "id": newsletter_data_dict["id"],
+                    "user_id": newsletter_data_dict["user_id"],
+                    "title": newsletter_data_dict["title"],
+                    "subject": newsletter_data_dict["subject"],
+                    "content": content_obj,
+                    "status": newsletter_data_dict["status"],
+                    "style": newsletter_data_dict["style"],
+                    "length": newsletter_data_dict["length"],
+                    "estimated_read_time": newsletter_data_dict["estimated_read_time"],
+                    "tags": newsletter_data_dict["tags"],
+                    "ai_model_used": newsletter_data_dict["ai_model_used"],
+                    "tokens_used": newsletter_data_dict["tokens_used"],
+                    "open_rate": newsletter_data_dict["open_rate"],
+                    "click_rate": newsletter_data_dict["click_rate"],
+                    "subscribers_count": newsletter_data_dict["subscribers_count"],
+                    "views_count": newsletter_data_dict["views_count"],
+                    "created_at": None,
+                    "updated_at": None,
+                    "published_at": None,
+                    "scheduled_at": None
+                }
+            else:
+                logger.error(f"Failed to create newsletter via Supabase REST API: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=500, detail=f"Failed to save newsletter: {response.status_code}")
+                
     except Exception as e:
-        logger.error(f"Error creating newsletter: {e}")
-        # Only rollback if we have a real database connection
-        if hasattr(db, 'rollback'):
-            db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while creating the newsletter: {str(e)}"
-        )
+        logger.error(f"Error creating newsletter via Supabase REST API: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save newsletter: {str(e)}")
 
 @router.get("/analytics/summary")
 async def get_newsletter_analytics(

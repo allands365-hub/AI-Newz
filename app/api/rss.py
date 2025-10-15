@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -9,7 +10,7 @@ from datetime import datetime
 from dateutil import parser as date_parser
 
 from app.core.database import get_db
-from app.core.supabase_auth import get_current_user_supabase
+from app.core.supabase_auth import get_current_user_supabase, security
 from app.core.config import settings
 from app.models.rss_source import RSSSource
 from app.models.article import Article
@@ -474,15 +475,17 @@ async def delete_rss_source(
 @router.post("/fetch", response_model=RSSFetchResponse)
 async def fetch_rss_feeds(
     fetch_request: RSSFetchRequest,
-    current_user: dict = Depends(get_current_user_supabase)
+    current_user: dict = Depends(get_current_user_supabase),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """Fetch articles from RSS feeds using Supabase REST API"""
     try:
         # Use Supabase REST API instead of direct database connection
-        supabase_service = SupabaseRSSService()
+        access_token = credentials.credentials
+        supabase_service = SupabaseRSSService(access_token=access_token)
         
-        # Get RSS sources
-        sources = await supabase_service.get_rss_sources()
+        # Get RSS sources for the current user
+        sources = await supabase_service.get_rss_sources_for_user(current_user["id"], access_token=access_token)
         
         # Filter by source_ids if provided
         if fetch_request.source_ids:
@@ -526,6 +529,10 @@ async def fetch_rss_feeds(
                     # Process articles (simplified for now)
                     for entry in entries[:10]:  # Limit to 10 articles per source
                         try:
+                            # Extract RSS images before processing
+                            rss_images = rss_service._extract_rss_images(entry)
+                            entry['rss_images'] = rss_images
+                            
                             # Process article content for enhanced data
                             processed_content = await rss_service.process_article_content(entry)
                             

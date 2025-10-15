@@ -15,11 +15,12 @@ export const API_ENDPOINTS = {
     GENERATE: `${API_BASE_URL}/api/v1/newsletters/generate`,
     TEST_GENERATE: `${API_BASE_URL}/api/v1/newsletters/test-generate`,
     TEST_GENERATE_CUSTOM: `${API_BASE_URL}/api/v1/test-newsletter-generate`,
-    LIST: '/api/newsletters',
+    LIST: `${API_BASE_URL}/api/v1/newsletters/`,
     GET: (id: string) => `${API_BASE_URL}/api/v1/newsletters/${id}`,
     UPDATE: (id: string) => `${API_BASE_URL}/api/v1/newsletters/${id}`,
     DELETE: (id: string) => `${API_BASE_URL}/api/v1/newsletters/${id}`,
     PUBLISH: (id: string) => `${API_BASE_URL}/api/v1/newsletters/${id}/publish`,
+    PUBLISH_DIRECT: `${API_BASE_URL}/api/v1/newsletters/publish-direct`,
     ANALYTICS: `${API_BASE_URL}/api/v1/newsletters/analytics/summary`,
   },
   

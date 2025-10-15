@@ -104,6 +104,28 @@ async def test_newsletter_generate(request: dict):
         logger.error(f"Error in test newsletter generation: {e}")
         return {"success": False, "error": str(e)}
 
+@app.post("/api/v1/test-save-draft")
+async def test_save_draft(request: dict):
+    """Test saving a draft newsletter without authentication - for testing"""
+    try:
+        from app.services.supabase_fallback_service import supabase_fallback
+        
+        newsletter_data = {
+            "user_id": request.get('user_id', 'test-user-id'),
+            "title": request.get('title', 'Test Newsletter'),
+            "subject": request.get('subject', 'Test Subject'),
+            "content": request.get('content', '{"test": "content"}'),
+            "status": "draft"
+        }
+        
+        result = await supabase_fallback.create_newsletter(newsletter_data)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error testing save draft: {e}")
+        return {"error": str(e)}
+
 @app.post("/api/v1/send-newsletter-email")
 async def send_newsletter_email(request: dict):
     """Send newsletter via email without authentication - for testing"""

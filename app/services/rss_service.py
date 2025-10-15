@@ -85,7 +85,7 @@ class RSSService:
         try:
             import html
             content = article_data.get("content", [])
-            if not content:
+            if not content or (isinstance(content, list) and len(content) == 0):
                 content = article_data.get("summary", "")
             else:
                 # Extract text from HTML content
@@ -110,8 +110,11 @@ class RSSService:
             
             # Extract images and visual content
             original_content = article_data.get("content", [])
-            if isinstance(original_content, list):
+            if isinstance(original_content, list) and len(original_content) > 0:
                 original_content = " ".join(str(item) for item in original_content)
+            elif not original_content or (isinstance(original_content, list) and len(original_content) == 0):
+                # Fallback to summary if no content
+                original_content = article_data.get("summary", "")
             
             # Get article URL for image extraction
             article_url = article_data.get("url", "")
@@ -130,6 +133,11 @@ class RSSService:
             tags = self._extract_tags(article_data)
             category = self._categorize_content(content, tags)
             
+            # Override has_images if RSS images are found
+            has_images = content_metadata["has_images"]
+            if image_data["image_url"] or image_data["thumbnail_url"]:
+                has_images = True
+            
             return {
                 "content": content,
                 "word_count": word_count,
@@ -143,7 +151,7 @@ class RSSService:
                 "thumbnail_url": image_data["thumbnail_url"],
                 "image_alt_text": image_data["image_alt_text"],
                 "reading_time": content_metadata["reading_time"],
-                "has_images": content_metadata["has_images"],
+                "has_images": has_images,
                 "has_videos": content_metadata["has_videos"],
                 "has_lists": content_metadata["has_lists"],
                 "has_quotes": content_metadata["has_quotes"],

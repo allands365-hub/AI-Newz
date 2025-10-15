@@ -31,7 +31,13 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
     useRss: true,
     sinceDays: 3,
     rssLimit: 6,
-    minQuality: 0.5
+    minQuality: 0.1,
+    // Additional RSS fields
+    requireImage: false,
+    minWordCount: 10,
+    dedupeTitleSimilarity: 0.85,
+    perSourceCap: 3,
+    includeFields: ['title', 'summary', 'url', 'tags']
   });
   const [generatedNewsletter, setGeneratedNewsletter] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -98,8 +104,16 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
           use_rss: formData.useRss,
           since_days: formData.sinceDays,
           rss_limit: formData.rssLimit,
-          min_quality: formData.minQuality
+          min_quality: formData.minQuality,
+          // Additional RSS fields
+          require_image: formData.requireImage,
+          min_word_count: formData.minWordCount,
+          dedupe_title_similarity: formData.dedupeTitleSimilarity,
+          per_source_cap: formData.perSourceCap,
+          include_fields: formData.includeFields,
+          sort_by: 'recency_then_quality'
         };
+        console.log('Request body:', JSON.stringify(requestData, null, 2));
         
         response = await fetch(API_ENDPOINTS.NEWSLETTERS.GENERATE, {
           method: 'POST',
@@ -119,6 +133,22 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
       }
 
       const result = await response.json();
+      
+      // Debug: Log the full response
+      console.log('Newsletter generation response:', result);
+      console.log('Included articles:', result.included_articles);
+      console.log('Articles count:', result.included_articles?.length || 0);
+      console.log('Raw content (first 500 chars):', result.raw_content?.substring(0, 500));
+      
+      // Parse the newsletter content if it's a JSON string
+      if (result.newsletter && typeof result.newsletter === 'string') {
+        try {
+          result.newsletter = JSON.parse(result.newsletter);
+        } catch (e) {
+          console.error('Failed to parse newsletter content:', e);
+        }
+      }
+      
       setGeneratedNewsletter(result);
       
       if (onNewsletterGenerated) {
@@ -132,8 +162,8 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
   };
 
   const handlePublish = async () => {
-    if (!generatedNewsletter?.newsletter_id) {
-      setError('Newsletter must be saved before publishing');
+    if (!generatedNewsletter) {
+      setError('No newsletter to publish');
       return;
     }
 
@@ -143,9 +173,31 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
 
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(API_ENDPOINTS.NEWSLETTERS.PUBLISH(generatedNewsletter.newsletter_id), {
+      
+      // Prepare newsletter data for direct publishing
+      const newsletterContent = {
+        ...generatedNewsletter.newsletter,
+        // Include articles if available
+        articles: generatedNewsletter.included_articles || []
+      };
+      
+      const newsletterData = {
+        title: generatedNewsletter.newsletter?.subject || "Generated Newsletter",
+        subject: generatedNewsletter.newsletter?.subject || "Generated Newsletter",
+        content: JSON.stringify(newsletterContent),
+        status: 'published',
+        tags: generatedNewsletter.newsletter?.tags || [],
+        subscribers_count: 0,
+        views_count: 0,
+        open_rate: 0.0,
+        click_rate: 0.0,
+        estimated_read_time: generatedNewsletter.newsletter?.estimated_read_time || "5 minutes"
+      };
+
+      const response = await fetch(API_ENDPOINTS.NEWSLETTERS.PUBLISH_DIRECT, {
         method: 'POST',
-        headers
+        headers,
+        body: JSON.stringify(newsletterData)
       });
 
       if (!response.ok) {
@@ -154,11 +206,16 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
       }
 
       const result = await response.json();
-      setPublishSuccess('Newsletter published successfully!');
       
-      // Update the generated newsletter with published status
+      // Show success message with email status
+      const emailStatus = result.email_sent ? ' and sent to allands365@gmail.com' : ' (email sending failed)';
+      setPublishSuccess(`Newsletter published successfully${emailStatus}! Also saved as draft.`);
+      
+      // Update the generated newsletter with published status and IDs
       setGeneratedNewsletter((prev: any) => ({
         ...prev,
+        newsletter_id: result.newsletter_id,
+        draft_id: result.draft_id,
         newsletter: {
           ...prev.newsletter,
           status: 'published',
@@ -193,12 +250,18 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
       
       const method = generatedNewsletter.newsletter_id ? 'PUT' : 'POST';
       
+      const newsletterContent = {
+        ...generatedNewsletter.newsletter,
+        // Include articles if available
+        articles: generatedNewsletter.included_articles || []
+      };
+      
       const newsletterData = {
-        title: "Test Newsletter",
-        subject: "Test Subject",
-        content: '{"subject": "Test Newsletter", "opening": "This is a test", "sections": [], "call_to_action": "Test", "estimated_read_time": "5 minutes", "tags": []}',
+        title: generatedNewsletter.newsletter?.subject || "Generated Newsletter",
+        subject: generatedNewsletter.newsletter?.subject || "Generated Newsletter",
+        content: JSON.stringify(newsletterContent),
         status: 'draft',
-        tags: [],
+        tags: generatedNewsletter.newsletter?.tags || [],
         subscribers_count: 0,
         views_count: 0,
         open_rate: 0.0,
@@ -277,17 +340,37 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
   };
 
   // Helper function to clean and parse content
-  const cleanContent = (content: string): string => {
+  const cleanContent = (content: any): string => {
     if (!content) return '';
     
+    // If content is already a string and doesn't look like JSON, return as is
+    if (typeof content === 'string' && !content.trim().startsWith('{')) {
+      return content;
+    }
+    
+    // If content is an object, return as is (it's already parsed)
+    if (typeof content === 'object' && content !== null) {
+      return content;
+    }
+    
     // Remove JSON code blocks if present
-    let cleaned = content.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    let cleaned = content.toString().replace(/```json\s*/g, '').replace(/```\s*/g, '');
     
     // Try to parse as JSON if it looks like JSON
     if (cleaned.trim().startsWith('{') && cleaned.trim().endsWith('}')) {
       try {
         const parsed = JSON.parse(cleaned);
-        return parsed.content || parsed.opening || parsed;
+        // If it's a newsletter object, return the opening or content
+        if (parsed.opening) {
+          return parsed.opening;
+        } else if (parsed.content) {
+          return parsed.content;
+        } else if (typeof parsed === 'string') {
+          return parsed;
+        } else {
+          // If it's a complex object, return a string representation
+          return JSON.stringify(parsed, null, 2);
+        }
       } catch (e) {
         // If JSON parsing fails, return the cleaned content
         return cleaned;
@@ -577,38 +660,130 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                 </div>
               </div>
 
-              {/* Sources Used Section */}
-              <div className="space-y-4">
-                {Array.isArray(generatedNewsletter.included_articles) && generatedNewsletter.included_articles.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Sources used ({generatedNewsletter.included_articles.length})</h4>
-                    <div className="space-y-2">
-                      {generatedNewsletter.included_articles.map((a: any, i: number) => {
-                        const host = (() => { try { return a.url ? new URL(a.url).hostname.replace('www.','') : ''; } catch { return ''; } })();
-                        const source = a.rss_source_name || host;
-                        return (
-                          <div key={i} className="flex items-start justify-between gap-3 border border-gray-100 rounded-md p-2">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-gray-900 truncate">{source || 'Source'}</div>
-                              <a href={a.url} target="_blank" rel="noreferrer" className="text-sm text-primary-600 hover:underline truncate block">
-                                {a.title || a.url}
-                              </a>
-                              {Array.isArray(a.tags) && a.tags.length > 0 && (
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {a.tags.slice(0,3).map((t: string, idx: number) => (
-                                    <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">{t}</span>
+              {/* Articles Used Section - Enhanced */}
+              {Array.isArray(generatedNewsletter.included_articles) && generatedNewsletter.included_articles.length > 0 && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                        </svg>
+                        Articles Used in Generation
+                      </h4>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {generatedNewsletter.included_articles.length} articles from RSS feeds were analyzed to create this newsletter
+                      </p>
+                    </div>
+                    <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                      {generatedNewsletter.included_articles.length} sources
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-4">
+                    {generatedNewsletter.included_articles.map((article: any, index: number) => {
+                      const host = (() => { 
+                        try { 
+                          return article.url ? new URL(article.url).hostname.replace('www.','') : ''; 
+                        } catch { 
+                          return ''; 
+                        } 
+                      })();
+                      const source = article.rss_source_name || host;
+                      const hasImage = article.image_url && article.image_url !== 'no-image';
+                      
+                      return (
+                        <div key={index} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                          <div className="flex gap-4">
+                            {/* Article Image */}
+                            {hasImage && (
+                              <div className="flex-shrink-0">
+                                <img 
+                                  src={article.image_url} 
+                                  alt={article.title}
+                                  className="w-20 h-20 object-cover rounded-lg"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            )}
+                            
+                            {/* Article Content */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <h5 className="font-semibold text-gray-900 line-clamp-2 leading-tight">
+                                  {article.title || 'Untitled Article'}
+                                </h5>
+                                <a 
+                                  href={article.url} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="flex-shrink-0 text-blue-600 hover:text-blue-800 transition-colors"
+                                  title="Open article"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </a>
+                              </div>
+                              
+                              {/* Source */}
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-medium text-blue-600">{source || 'Unknown Source'}</span>
+                                {article.published_at && (
+                                  <span className="text-xs text-gray-500">
+                                    • {new Date(article.published_at).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {/* Summary */}
+                              {article.summary && (
+                                <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                                  {article.summary}
+                                </p>
+                              )}
+                              
+                              {/* Tags */}
+                              {Array.isArray(article.tags) && article.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {article.tags.slice(0, 4).map((tag: string, tagIndex: number) => (
+                                    <span 
+                                      key={tagIndex} 
+                                      className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
+                                    >
+                                      {tag}
+                                    </span>
                                   ))}
+                                  {article.tags.length > 4 && (
+                                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                                      +{article.tags.length - 4} more
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>
-                            <div className="text-xs text-gray-500 shrink-0">link</div>
                           </div>
-                        );
-                      })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Summary Stats */}
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <div className="flex items-center gap-4">
+                        <span>📊 {generatedNewsletter.included_articles.length} articles analyzed</span>
+                        <span>🎯 AI-generated topic: <span className="font-medium text-gray-900">{generatedNewsletter.newsletter.topic}</span></span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Generated with {generatedNewsletter.model_used}
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex space-x-3">
@@ -643,7 +818,7 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handlePublish}
-                  disabled={isPublishing || !generatedNewsletter?.newsletter_id}
+                  disabled={isPublishing || !generatedNewsletter}
                   className="flex-1 bg-accent-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                 >
                   {isPublishing ? (

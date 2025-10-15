@@ -100,6 +100,28 @@ class EmailService:
                 </div>
                 {% endfor %}
                 
+                {% if newsletter.articles %}
+                <div class="section">
+                    <h2>📰 Featured Articles</h2>
+                    <div class="articles">
+                        {% for article in newsletter.articles %}
+                        <div class="article-item" style="margin-bottom: 20px; padding: 15px; border-left: 3px solid #667eea; background: #f8f9ff;">
+                            <h3 style="margin: 0 0 10px 0; color: #333; font-size: 16px;">
+                                <a href="{{ article.url }}" style="color: #667eea; text-decoration: none;">{{ article.title }}</a>
+                            </h3>
+                            <p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">{{ article.summary }}</p>
+                            <div style="font-size: 12px; color: #888;">
+                                <span>By {{ article.author or 'Unknown' }}</span>
+                                {% if article.published_at %}
+                                <span> • {{ article.published_at[:10] }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
                 {% if newsletter.call_to_action %}
                 <div class="cta">
                     <h3>Call to Action</h3>

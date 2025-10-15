@@ -1,11 +1,24 @@
 # AI-Newz Universal Startup Script for PowerShell
 # This script starts both backend and frontend servers
+# 
+# IMPORTANT: PowerShell uses ';' instead of '&&' as command separator
+# If running manually, use: cd "F:\cursor files\4thOct_buildathon"; python start.py
 
 Write-Host "Starting AI-Newz Platform..." -ForegroundColor Green
 Write-Host ""
 
 # Get the directory where this PowerShell script is located
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# Change to the project directory (handles the C: drive issue)
+$ProjectDir = "F:\cursor files\4thOct_buildathon"
+if (Test-Path $ProjectDir) {
+    Set-Location $ProjectDir
+    Write-Host "✅ Changed to project directory: $ProjectDir" -ForegroundColor Green
+} else {
+    Write-Host "⚠️  Warning: Project directory not found at $ProjectDir" -ForegroundColor Yellow
+    Write-Host "Using script directory: $ScriptDir" -ForegroundColor Yellow
+}
 
 # Check if Python is available
 try {
@@ -31,7 +44,13 @@ try {
 
 # Start the Python startup script
 Write-Host "🚀 Starting servers..." -ForegroundColor Blue
-python "$ScriptDir\start.py"
+Write-Host "Note: Use Ctrl+C to stop both servers" -ForegroundColor Yellow
+Write-Host ""
+
+# Run the Python script
+python start.py
 
 # If we get here, the script exited
-Read-Host "Press Enter to exit"
+Write-Host ""
+Write-Host "Servers stopped. Press Enter to exit..." -ForegroundColor Yellow
+Read-Host

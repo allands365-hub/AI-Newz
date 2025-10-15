@@ -33,6 +33,10 @@ pip-delete-this-directory.txt
 ehthumbs.db
 Thumbs.db
 
+# Additional OS/user folders
+AppData/
+**/AppData/
+
 # Logs
 logs
 *.log
@@ -85,6 +89,9 @@ jspm_packages/
 # Next.js build output
 .next/
 out/
+frontend/.next/
+frontend/.turbo/
+.vercel/
 
 # Nuxt.js build / generate output
 .nuxt
@@ -114,6 +121,7 @@ alembic/versions/*.py
 *.egg-info/
 dist/
 build/
+.venv/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -179,6 +187,8 @@ dmypy.json
 # dotenv environment variables file
 .env
 .env.test
+env.local
+GAuth.json
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -215,4 +225,8 @@ temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Cursor/Playwright artifacts
+.cursor/
+.playwright-mcp/
 

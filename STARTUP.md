@@ -13,6 +13,12 @@ python start.py
 - **Windows Batch**: `start.bat`
 - **Windows PowerShell**: `start.ps1`
 
+### Option 3: Manual PowerShell (if needed)
+If you're using PowerShell and need to run commands manually, use `;` instead of `&&`:
+```powershell
+cd "F:\cursor files\4thOct_buildathon"; python start.py
+```
+
 ## ✨ What the Startup Script Does
 
 1. **🔍 Dependency Check**: Verifies Python, Node.js, and npm are installed
@@ -77,6 +83,11 @@ Once started, access:
 4. **"Missing dependencies"**
    - Run `pip install -r requirements.txt`
    - Run `cd frontend && npm install`
+
+5. **PowerShell "&&" error**
+   - PowerShell uses `;` instead of `&&` as command separator
+   - Use: `cd "F:\cursor files\4thOct_buildathon"; python start.py`
+   - Or use the provided `start.ps1` script instead
 
 ### Manual Startup (if needed)
 

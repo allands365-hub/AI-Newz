@@ -13,15 +13,23 @@ logger = logging.getLogger(__name__)
 class SupabaseRSSService:
     """RSS service using Supabase REST API instead of direct database connection"""
     
-    def __init__(self, access_token: str = None):
+    def __init__(self, access_token: str = None, use_service_role: bool = False):
         self.supabase_url = settings.SUPABASE_URL
         self.supabase_key = settings.SUPABASE_ANON_KEY
         self.access_token = access_token
+        self.use_service_role = use_service_role
         
-        # Use JWT token if provided, otherwise use anon key
-        auth_token = access_token if access_token else self.supabase_key
+        # Use service role key if requested (bypasses RLS)
+        if use_service_role and settings.SUPABASE_SERVICE_ROLE_KEY:
+            auth_token = settings.SUPABASE_SERVICE_ROLE_KEY
+            api_key = settings.SUPABASE_SERVICE_ROLE_KEY
+        else:
+            # Use JWT token if provided, otherwise use anon key
+            auth_token = access_token if access_token else self.supabase_key
+            api_key = self.supabase_key
+            
         self.headers = {
-            "apikey": self.supabase_key,
+            "apikey": api_key,
             "Authorization": f"Bearer {auth_token}",
             "Content-Type": "application/json"
         }
@@ -48,6 +56,8 @@ class SupabaseRSSService:
             if access_token:
                 headers["Authorization"] = f"Bearer {access_token}"
             
+            logger.info(f"Fetching RSS sources for user {user_id} with headers: {headers}")
+            
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"{self.supabase_url}/rest/v1/rss_sources",
@@ -58,7 +68,9 @@ class SupabaseRSSService:
                     }
                 )
                 response.raise_for_status()
-                return response.json()
+                sources = response.json()
+                logger.info(f"Found {len(sources)} RSS sources for user {user_id}")
+                return sources
         except Exception as e:
             logger.error(f"Error fetching RSS sources for user {user_id} via REST API: {e}")
             return []

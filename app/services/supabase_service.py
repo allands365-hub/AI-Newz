@@ -26,68 +26,29 @@ class SupabaseService:
         )
     
     def get_user(self, access_token: str) -> Optional[Dict[str, Any]]:
-        """Get user from Supabase using access token via Supabase client with timeout handling"""
-        import asyncio
-        import signal
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
-        
-        def _verify_token_with_timeout():
-            """Internal function to verify token with timeout"""
-            try:
-                logger.info(f"Getting user with token: {access_token[:20]}...")
-                
-                # Skip the problematic Supabase client method and go directly to fallback
-                # The Supabase Python client has known issues with JWT token verification
-                logger.info("Skipping Supabase client method due to known JWT issues, using fallback directly")
-                return None
-                
-                # Original code (commented out due to JWT issues):
-                # self.supabase.auth.set_session(access_token, "")
-                # user_response = self.supabase.auth.get_user()
-                # if user_response and user_response.user:
-                #     user = user_response.user
-                #     logger.info(f"Successfully verified user: {user.email}")
-                #     # ... rest of the code
-                
-            except Exception as auth_error:
-                logger.error(f"Supabase auth error: {auth_error}")
-                return None
-        
+        """Get user from Supabase using access token via direct HTTP API call"""
         try:
-            # Use ThreadPoolExecutor with timeout to prevent hanging
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_verify_token_with_timeout)
-                try:
-                    # Set timeout to 10 seconds
-                    result = future.result(timeout=10)
-                    if result:
-                        return result
-                    else:
-                        # If main verification failed, try fallback method
-                        logger.info("Main JWT verification failed, trying fallback method...")
-                        return self._fallback_jwt_verification(access_token)
-                except FutureTimeoutError:
-                    logger.error("JWT verification timed out after 10 seconds, trying fallback method...")
-                    future.cancel()  # Cancel the hanging operation
-                    return self._fallback_jwt_verification(access_token)
-                except Exception as e:
-                    logger.error(f"Error in JWT verification thread: {str(e)}, trying fallback method...")
-                    return self._fallback_jwt_verification(access_token)
+            logger.info(f"Getting user with token: {access_token[:20]}...")
+            
+            # Use direct HTTP API call instead of Supabase client
+            # This bypasses JWT secret verification issues
+            return self._fallback_jwt_verification(access_token)
                     
         except Exception as e:
-            logger.error(f"Error getting user from Supabase: {str(e)}, trying fallback method...")
-            return self._fallback_jwt_verification(access_token)
+            logger.error(f"Error getting user from Supabase: {str(e)}")
+            return None
     
     def _fallback_jwt_verification(self, access_token: str) -> Optional[Dict[str, Any]]:
         """Fallback JWT verification using direct HTTP request to Supabase Auth API"""
         try:
             import httpx
             from app.core.config import settings
+            import json
             
             logger.info("Attempting fallback JWT verification via HTTP API...")
             
             # Make a direct HTTP request to Supabase Auth API
-            with httpx.Client(timeout=5.0) as client:
+            with httpx.Client(timeout=10.0) as client:
                 response = client.get(
                     f"{settings.SUPABASE_URL}/auth/v1/user",
                     headers={
@@ -96,6 +57,8 @@ class SupabaseService:
                         "Content-Type": "application/json"
                     }
                 )
+                
+                logger.info(f"Fallback verification response: {response.status_code}")
                 
                 if response.status_code == 200:
                     user_data = response.json()
@@ -121,7 +84,32 @@ class SupabaseService:
                     logger.info(f"Fallback returning user data: {result}")
                     return result
                 else:
-                    logger.error(f"Fallback verification failed: {response.status_code} - {response.text}")
+                    error_text = response.text
+                    logger.error(f"Fallback verification failed: {response.status_code} - {error_text}")
+                    
+                    # If the token is invalid, try to decode it to see what's wrong
+                    try:
+                        import base64
+                        # Decode JWT header and payload (without verification)
+                        parts = access_token.split('.')
+                        if len(parts) == 3:
+                            header = json.loads(base64.urlsafe_b64decode(parts[0] + '=='))
+                            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=='))
+                            logger.info(f"JWT Header: {header}")
+                            logger.info(f"JWT Payload: {payload}")
+                            
+                            # Check if token is expired
+                            import time
+                            if 'exp' in payload:
+                                exp_time = payload['exp']
+                                current_time = int(time.time())
+                                if current_time > exp_time:
+                                    logger.error(f"Token expired: exp={exp_time}, current={current_time}")
+                                else:
+                                    logger.info(f"Token not expired: exp={exp_time}, current={current_time}")
+                    except Exception as decode_error:
+                        logger.error(f"Error decoding JWT: {decode_error}")
+                    
                     return None
                     
         except Exception as e:

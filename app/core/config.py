@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # Supabase
     SUPABASE_URL: str
     SUPABASE_ANON_KEY: str
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
     SUPABASE_JWT_SECRET: Optional[str] = None
     
     # Google OAuth (optional - used by Supabase Auth)
