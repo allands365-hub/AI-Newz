@@ -10,7 +10,7 @@ class GrokService:
     """Service for interacting with Grok AI API for newsletter generation"""
     
     def __init__(self):
-        self.api_key = settings.effective_grok_api_key
+        self.api_key = settings.GROK_API_KEY
         self.api_url = settings.GROK_API_URL
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -18,10 +18,8 @@ class GrokService:
         }
         
         # Debug: Print API key (first 10 chars for security)
-        print(f"[DEBUG] GrokService initialized:")
-        print(f"   API Key: {self.api_key[:10] if self.api_key else 'None'}...")
-        print(f"   API URL: {self.api_url}")
-        print(f"   Headers: {self.headers}")
+        print(f"Grok API Key: {self.api_key[:10]}...")
+        print(f"Grok API URL: {self.api_url}")
     
     async def generate_newsletter(
         self,
@@ -81,9 +79,9 @@ class GrokService:
             if "Authorization" in masked_headers:
                 masked_headers["Authorization"] = f"Bearer {self.api_key[:10]}***"
             
-            print(f"[DEBUG] Making request to: {self.api_url}")
-            print(f"[DEBUG] Headers: {masked_headers}")
-            print(f"[DEBUG] Payload: {payload}")
+            print(f"Making request to: {self.api_url}")
+            print(f"Headers: {masked_headers}")
+            print(f"Payload: {payload}")
         
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
@@ -91,13 +89,6 @@ class GrokService:
                     headers=self.headers,
                     json=payload
                 )
-                print(f"[DEBUG] Response status: {response.status_code}")
-                print(f"[DEBUG] Response headers: {dict(response.headers)}")
-                
-                if response.status_code != 200:
-                    print(f"[ERROR] API Error: {response.status_code}")
-                    print(f"[ERROR] Response text: {response.text}")
-                
                 response.raise_for_status()
             
             result = response.json()
@@ -129,8 +120,6 @@ class GrokService:
             }
         except httpx.HTTPStatusError as e:
             logger.error(f"Grok API HTTP error: {e.response.status_code}")
-            print(f"[ERROR] HTTP Error: {e.response.status_code}")
-            print(f"[ERROR] Error response: {e.response.text}")
             return {
                 "success": False,
                 "error": f"API request failed with status {e.response.status_code}",
@@ -268,31 +257,31 @@ Make sure the newsletter is engaging, informative, and provides real value to re
             logger.warning(f"Structured parsing failed: {e}")
             # Fallback: create a basic structure
             newsletter_data = {
-                "subject": f"Weekly Update: {topic}",
-                "topic": topic,  # Use original topic as fallback
-                "opening": content[:200] + "..." if len(content) > 200 else content,
-                "sections": [
-                    {
-                        "title": "Main Content",
-                        "content": content,
-                        "type": "main"
-                    }
-                ],
-                "call_to_action": "Stay tuned for more updates!",
-                "estimated_read_time": "5 minutes",
-                "tags": [topic.lower().replace(" ", "-")]
-            }
+                    "subject": f"Weekly Update: {topic}",
+                    "topic": topic,  # Use original topic as fallback
+                    "opening": content[:200] + "..." if len(content) > 200 else content,
+                    "sections": [
+                        {
+                            "title": "Main Content",
+                            "content": content,
+                            "type": "main"
+                        }
+                    ],
+                    "call_to_action": "Stay tuned for more updates!",
+                    "estimated_read_time": "5 minutes",
+                    "tags": [topic.lower().replace(" ", "-")]
+                }
+                
+                # Add articles if available
+                if curated_articles:
+                    newsletter_data["articles"] = curated_articles
+                
+                return newsletter_data
             
-            # Add articles if available
-            if curated_articles:
-                newsletter_data["articles"] = curated_articles
-            
-            return newsletter_data
-    
     def _parse_structured_response(self, content: str) -> Dict[str, Any]:
         """Parse structured text response into newsletter data"""
-        import re
-        
+                import re
+                
         # Initialize the newsletter data structure
         newsletter_data = {
             "subject": "",
@@ -385,9 +374,9 @@ Make sure the newsletter is engaging, informative, and provides real value to re
         # Ensure we have at least one section
         if not newsletter_data["sections"]:
             newsletter_data["sections"] = [{
-                "title": "Main Content",
+                                "title": "Main Content",
                 "content": newsletter_data["opening"] or "Content not available",
-                "type": "main"
+                                "type": "main"
             }]
         
         # Set defaults for missing fields
@@ -451,9 +440,9 @@ Make sure the newsletter is engaging, informative, and provides real value to re
             main_content = f"Here's what's happening in the world of {topic} this week. We've identified key trends and developments that are shaping the industry."
         
         sections.append({
-            "title": "Main Content",
+                        "title": "Main Content",
             "content": main_content,
-            "type": "main"
+                        "type": "main"
         })
         
         # Trending insights section

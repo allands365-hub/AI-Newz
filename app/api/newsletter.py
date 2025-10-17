@@ -344,6 +344,10 @@ async def generate_newsletter(
             curated_articles=curated_articles if curated_articles else None
         )
         
+        # Add template information to the result
+        if result.get("success"):
+            result["newsletter"]["template"] = request.template or "modern"
+        
         if not result["success"]:
             raise HTTPException(
                 status_code=500,

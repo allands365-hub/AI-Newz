@@ -10,7 +10,7 @@ class GrokService:
     """Service for interacting with Grok AI API for newsletter generation"""
     
     def __init__(self):
-        self.api_key = settings.effective_grok_api_key
+        self.api_key = settings.GROK_API_KEY
         self.api_url = settings.GROK_API_URL
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -18,10 +18,8 @@ class GrokService:
         }
         
         # Debug: Print API key (first 10 chars for security)
-        print(f"[DEBUG] GrokService initialized:")
-        print(f"   API Key: {self.api_key[:10] if self.api_key else 'None'}...")
-        print(f"   API URL: {self.api_url}")
-        print(f"   Headers: {self.headers}")
+        print(f"Grok API Key: {self.api_key[:10]}...")
+        print(f"Grok API URL: {self.api_url}")
     
     async def generate_newsletter(
         self,
@@ -81,9 +79,9 @@ class GrokService:
             if "Authorization" in masked_headers:
                 masked_headers["Authorization"] = f"Bearer {self.api_key[:10]}***"
             
-            print(f"[DEBUG] Making request to: {self.api_url}")
-            print(f"[DEBUG] Headers: {masked_headers}")
-            print(f"[DEBUG] Payload: {payload}")
+            print(f"Making request to: {self.api_url}")
+            print(f"Headers: {masked_headers}")
+            print(f"Payload: {payload}")
         
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
@@ -91,13 +89,6 @@ class GrokService:
                     headers=self.headers,
                     json=payload
                 )
-                print(f"[DEBUG] Response status: {response.status_code}")
-                print(f"[DEBUG] Response headers: {dict(response.headers)}")
-                
-                if response.status_code != 200:
-                    print(f"[ERROR] API Error: {response.status_code}")
-                    print(f"[ERROR] Response text: {response.text}")
-                
                 response.raise_for_status()
             
             result = response.json()
@@ -129,8 +120,6 @@ class GrokService:
             }
         except httpx.HTTPStatusError as e:
             logger.error(f"Grok API HTTP error: {e.response.status_code}")
-            print(f"[ERROR] HTTP Error: {e.response.status_code}")
-            print(f"[ERROR] Error response: {e.response.text}")
             return {
                 "success": False,
                 "error": f"API request failed with status {e.response.status_code}",
@@ -495,3 +484,4 @@ Make sure the newsletter is engaging, informative, and provides real value to re
             "estimated_read_time": "5 minutes",
             "tags": tags
         }
+

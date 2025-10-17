@@ -25,6 +25,7 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
     topic: '',
     style: 'professional',
     length: 'medium',
+    template: 'modern',
     includeTrends: true,
     includeSummaries: true,
     saveNewsletter: false,
@@ -56,6 +57,13 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
     { value: 'short', label: 'Short', description: '300-500 words', time: '2-3 min read' },
     { value: 'medium', label: 'Medium', description: '500-800 words', time: '4-6 min read' },
     { value: 'long', label: 'Long', description: '800-1200 words', time: '7-10 min read' }
+  ];
+
+  const templates = [
+    { value: 'modern', label: 'Modern', description: 'Clean, professional design with gradients' },
+    { value: 'minimal', label: 'Minimal', description: 'Simple, clean layout focused on content' },
+    { value: 'classic', label: 'Classic', description: 'Traditional newspaper-style layout' },
+    { value: 'tech', label: 'Tech', description: 'Dark theme with code-style formatting' }
   ];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -98,6 +106,7 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
           topic: formData.topic,
           style: formData.style,
           length: formData.length,
+          template: formData.template,
           include_trends: formData.includeTrends,
           include_summaries: formData.includeSummaries,
           save_newsletter: formData.saveNewsletter,
@@ -526,6 +535,33 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                 </div>
               </div>
 
+              {/* Template Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email Template</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {templates.map((template) => (
+                    <label key={template.value} className="relative">
+                      <input
+                        type="radio"
+                        name="template"
+                        value={template.value}
+                        checked={formData.template === template.value}
+                        onChange={handleInputChange}
+                        className="sr-only"
+                      />
+                      <div className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        formData.template === template.value
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}>
+                        <div className="font-medium text-sm">{template.label}</div>
+                        <div className="text-xs text-gray-500 mt-1">{template.description}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {/* Additional Options */}
               <div className="space-y-3">
                 <div className="flex items-center space-x-3">
@@ -583,13 +619,13 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                 </div>
               )}
             </div>
-          ) : (
+          ) : generatedNewsletter && generatedNewsletter.success ? (
             <div className="space-y-6">
               {/* Newsletter Header */}
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Generated Newsletter</h3>
-                  {generatedNewsletter.newsletter.topic && generatedNewsletter.newsletter.topic !== formData.topic && (
+                  {generatedNewsletter.newsletter?.topic && generatedNewsletter.newsletter.topic !== formData.topic && (
                     <p className="text-sm text-blue-600 mt-1">
                       ✨ AI-generated topic: <span className="font-medium">{generatedNewsletter.newsletter.topic}</span>
                     </p>
@@ -598,11 +634,11 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                 <div className="flex items-center space-x-4 text-sm text-gray-500">
                   <div className="flex items-center space-x-1">
                     <ClockIcon className="h-4 w-4" />
-                    <span>{generatedNewsletter.newsletter.estimated_read_time}</span>
+                    <span>{generatedNewsletter.newsletter?.estimated_read_time || '5 minutes'}</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <TagIcon className="h-4 w-4" />
-                    <span>{generatedNewsletter.newsletter.tags?.length || 0} tags</span>
+                    <span>{generatedNewsletter.newsletter?.tags?.length || 0} tags</span>
                   </div>
                 </div>
               </div>
@@ -624,8 +660,8 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                     
                     {/* Subject Line */}
                     <div className="mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">Subject: {generatedNewsletter.newsletter.subject}</h3>
-                      {generatedNewsletter.newsletter.topic && generatedNewsletter.newsletter.topic !== formData.topic && (
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">Subject: {generatedNewsletter.newsletter?.subject || 'No subject'}</h3>
+                      {generatedNewsletter.newsletter?.topic && generatedNewsletter.newsletter.topic !== formData.topic && (
                         <p className="text-sm text-blue-600">
                           📝 Topic: {generatedNewsletter.newsletter.topic}
                         </p>
@@ -637,12 +673,12 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                       {/* Opening */}
                       <div className="prose prose-sm max-w-none">
                         <p className="text-gray-700 leading-relaxed">
-                          {cleanContent(generatedNewsletter.newsletter.opening)}
+                          {cleanContent(generatedNewsletter.newsletter?.opening)}
                         </p>
                       </div>
 
                       {/* All Sections - Full Content */}
-                      {generatedNewsletter.newsletter.sections?.map((section: any, index: number) => (
+                      {generatedNewsletter.newsletter?.sections?.map((section: any, index: number) => (
                         <div key={index} className="border-l-4 border-primary-200 pl-4">
                           <h4 className="font-semibold text-gray-900 mb-2">{section.title}</h4>
                           <div className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none">
@@ -658,15 +694,15 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                       <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
                         <h4 className="font-semibold text-primary-900 mb-2">Call to Action</h4>
                         <p className="text-primary-700 text-sm">
-                          {cleanContent(generatedNewsletter.newsletter.call_to_action)}
+                          {cleanContent(generatedNewsletter.newsletter?.call_to_action)}
                         </p>
                       </div>
 
                       {/* Footer */}
                       <div className="border-t border-gray-200 pt-4 text-center">
                         <p className="text-xs text-gray-500">
-                          Estimated read time: {generatedNewsletter.newsletter.estimated_read_time} • 
-                          Tags: {generatedNewsletter.newsletter.tags?.join(', ') || 'None'}
+                          Estimated read time: {generatedNewsletter.newsletter?.estimated_read_time || '5 minutes'} • 
+                          Tags: {generatedNewsletter.newsletter?.tags?.join(', ') || 'None'}
                         </p>
                       </div>
                     </div>
@@ -789,7 +825,7 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                     <div className="flex items-center justify-between text-sm text-gray-600">
                       <div className="flex items-center gap-4">
                         <span>📊 {generatedNewsletter.included_articles.length} articles analyzed</span>
-                        <span>🎯 AI-generated topic: <span className="font-medium text-gray-900">{generatedNewsletter.newsletter.topic}</span></span>
+                        <span>🎯 AI-generated topic: <span className="font-medium text-gray-900">{generatedNewsletter.newsletter?.topic || 'No topic'}</span></span>
                       </div>
                       <div className="text-xs text-gray-500">
                         Generated with {generatedNewsletter.model_used}
@@ -868,7 +904,20 @@ export default function NewsletterGenerator({ onNewsletterGenerated }: Newslette
                 </div>
               )}
             </div>
-          )}
+          ) : generatedNewsletter && !generatedNewsletter.success ? (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Newsletter Generation Failed</h3>
+                <p className="text-gray-600 mb-4">{generatedNewsletter.error || 'An unknown error occurred'}</p>
+                <button
+                  onClick={() => setGeneratedNewsletter(null)}
+                  className="bg-primary-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-700 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </motion.div>
     </div>

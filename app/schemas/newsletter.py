@@ -14,6 +14,12 @@ class NewsletterLength(str, Enum):
     MEDIUM = "medium"
     LONG = "long"
 
+class NewsletterTemplate(str, Enum):
+    MODERN = "modern"
+    MINIMAL = "minimal"
+    CLASSIC = "classic"
+    TECH = "tech"
+
 class NewsletterStatus(str, Enum):
     DRAFT = "draft"
     PUBLISHED = "published"
@@ -37,6 +43,7 @@ class NewsletterGenerateRequest(BaseModel):
     topic: str = Field(..., description="Main topic for the newsletter")
     style: Optional[NewsletterStyle] = Field(None, description="Writing style")
     length: Optional[NewsletterLength] = Field(NewsletterLength.MEDIUM, description="Newsletter length")
+    template: Optional[NewsletterTemplate] = Field(NewsletterTemplate.MODERN, description="Email template style")
     include_trends: bool = Field(True, description="Include trending topics")
     include_summaries: bool = Field(True, description="Include article summaries")
     save_newsletter: bool = Field(False, description="Save the generated newsletter to database")

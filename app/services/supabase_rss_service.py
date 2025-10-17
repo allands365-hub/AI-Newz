@@ -154,6 +154,53 @@ class SupabaseRSSService:
             logger.error(f"Error saving article via REST API: {e}")
             return False
     
+    async def delete_old_articles(self, user_id: str, cutoff_date: str) -> Dict[str, Any]:
+        """Delete old articles for a user before cutoff date using Supabase REST API"""
+        try:
+            async with httpx.AsyncClient() as client:
+                # Delete articles older than cutoff date for this user
+                response = await client.delete(
+                    f"{self.supabase_url}/rest/v1/articles",
+                    headers=self.headers,
+                    params={
+                        "user_id": f"eq.{user_id}",
+                        "published_at": f"lt.{cutoff_date}"
+                    }
+                )
+                response.raise_for_status()
+                
+                # Get count of deleted articles
+                count_response = await client.get(
+                    f"{self.supabase_url}/rest/v1/articles",
+                    headers=self.headers,
+                    params={
+                        "user_id": f"eq.{user_id}",
+                        "published_at": f"lt.{cutoff_date}",
+                        "select": "count"
+                    }
+                )
+                
+                deleted_count = len(response.json()) if response.json() else 0
+                logger.info(f"Deleted {deleted_count} old articles for user {user_id}")
+                
+                return {
+                    "success": True,
+                    "deleted_count": deleted_count,
+                    "cutoff_date": cutoff_date
+                }
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error deleting old articles via REST API: {e}")
+            return {
+                "success": False,
+                "error": f"HTTP error: {e.response.status_code if e.response else 'Unknown'}"
+            }
+        except Exception as e:
+            logger.error(f"Error deleting old articles via REST API: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
     async def create_rss_source(self, source_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new RSS source using Supabase REST API"""
         try:

@@ -43,13 +43,20 @@ if errorlevel 1 (
     for /f "tokens=*" %%i in ('node --version 2^>^&1') do echo [OK] Node.js: %%i
 )
 
-REM Start the Python startup script
+REM Start the Python startup script using venv Python if available
 echo.
 echo [INFO] Starting servers...
 echo [INFO] Use Ctrl+C to stop both servers
 echo.
 
-python start.py
+set VENV_PY="%PROJECT_DIR%\venv\Scripts\python.exe"
+if exist %VENV_PY% (
+    echo [INFO] Using virtual environment: %VENV_PY%
+    %VENV_PY% start.py
+ ) else (
+    echo [WARN] Virtual environment not found; falling back to system Python
+    python start.py
+ )
 
 REM If we get here, the script exited
 echo.

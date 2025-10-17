@@ -6,7 +6,7 @@ from typing import List, Optional
 import logging
 import os
 import httpx
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil import parser as date_parser
 
 from app.core.database import get_db
@@ -513,6 +513,23 @@ async def fetch_rss_feeds(
         articles_processed = 0
         duplicates_found = 0
         errors = []
+        
+        # Delete old articles before fetching new ones
+        try:
+            logger.info("Deleting old articles before fetching new ones...")
+            # Delete articles older than 7 days for this user
+            cutoff_date = datetime.utcnow() - timedelta(days=7)
+            cutoff_iso = cutoff_date.isoformat()
+            
+            # Use Supabase REST API to delete old articles
+            delete_response = await supabase_service.delete_old_articles(
+                user_id=current_user["id"],
+                cutoff_date=cutoff_iso
+            )
+            logger.info(f"Deleted old articles: {delete_response}")
+        except Exception as e:
+            logger.warning(f"Could not delete old articles: {e}")
+            # Continue with fetch even if cleanup fails
         
         # Process each source
         for source in sources:

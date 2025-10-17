@@ -47,8 +47,15 @@ Write-Host "🚀 Starting servers..." -ForegroundColor Blue
 Write-Host "Note: Use Ctrl+C to stop both servers" -ForegroundColor Yellow
 Write-Host ""
 
-# Run the Python script
-python start.py
+# Prefer the project's virtual environment Python if available
+$VenvPython = Join-Path $ProjectDir "venv\Scripts\python.exe"
+if (Test-Path $VenvPython) {
+    Write-Host "[INFO] Using virtual environment: $VenvPython" -ForegroundColor Cyan
+    & $VenvPython start.py
+} else {
+    Write-Host "[WARN] Virtual environment not found at $VenvPython; falling back to system Python" -ForegroundColor Yellow
+    python start.py
+}
 
 # If we get here, the script exited
 Write-Host ""

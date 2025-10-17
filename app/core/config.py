@@ -38,6 +38,18 @@ class Settings(BaseSettings):
         """Convert comma-separated string to list"""
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
     
+    @property
+    def effective_grok_api_key(self) -> Optional[str]:
+        """Get the effective Grok API key, checking both GROK_API_KEY and GROQ_API_KEY"""
+        api_key = self.GROK_API_KEY or self.GROQ_API_KEY
+        if api_key:
+            print(f"[OK] Grok API Key loaded: {api_key[:10]}...{api_key[-4:] if len(api_key) > 14 else '...'}")
+        else:
+            print("[ERROR] No Grok API Key found in environment variables")
+            print(f"   GROK_API_KEY: {self.GROK_API_KEY}")
+            print(f"   GROQ_API_KEY: {self.GROQ_API_KEY}")
+        return api_key
+    
     # Email Configuration
     RESEND_API_KEY: Optional[str] = None
     FROM_EMAIL: str = "noreply@resend.dev"  # Use Resend's verified domain for testing
@@ -51,7 +63,8 @@ class Settings(BaseSettings):
     
     # AI Configuration
     GROK_API_KEY: Optional[str] = None
-    GROK_API_URL: str = "https://api.groq.com/openai/v1"
+    GROQ_API_KEY: Optional[str] = None  # Alternative naming
+    GROK_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
     
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100
@@ -62,6 +75,8 @@ class Settings(BaseSettings):
         env_file = ".env"
         # Accept case-insensitive keys to be more forgiving in local setups
         case_sensitive = False
+        # Allow extra fields for environment variables
+        extra = "ignore"
 
 
 # Global settings instance

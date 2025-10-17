@@ -78,12 +78,17 @@ async def debug_env():
         "supabase_service_role_key_len": len(settings.SUPABASE_SERVICE_ROLE_KEY) if settings.SUPABASE_SERVICE_ROLE_KEY else 0,
         "debug": settings.DEBUG,
         "environment": settings.ENVIRONMENT,
+        "grok_api_key_status": "OK - Loaded" if settings.effective_grok_api_key else "ERROR - Not found",
+        "grok_api_key_preview": settings.effective_grok_api_key[:10] + "..." + settings.effective_grok_api_key[-4:] if settings.effective_grok_api_key else "None",
+        "grok_api_url": settings.GROK_API_URL,
         "os_env_database_url": os.getenv("DATABASE_URL", "Not set")[:50] + "..." if os.getenv("DATABASE_URL") else "Not set",
         "os_env_supabase_url": os.getenv("SUPABASE_URL", "Not set"),
         "os_env_supabase_anon_key": os.getenv("SUPABASE_ANON_KEY", "Not set")[:20] + "..." if os.getenv("SUPABASE_ANON_KEY") else "Not set",
         "os_env_supabase_service_role_key_len": len(os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")) if os.getenv("SUPABASE_SERVICE_ROLE_KEY") else 0,
         "os_env_supabase_service_key_len": len(os.getenv("SUPABASE_SERVICE_KEY", "")) if os.getenv("SUPABASE_SERVICE_KEY") else 0,
         "os_env_service_role_key_len": len(os.getenv("SERVICE_ROLE_KEY", "")) if os.getenv("SERVICE_ROLE_KEY") else 0,
+        "os_env_grok_api_key": os.getenv("GROK_API_KEY", "Not set")[:10] + "..." if os.getenv("GROK_API_KEY") else "Not set",
+        "os_env_groq_api_key": os.getenv("GROQ_API_KEY", "Not set")[:10] + "..." if os.getenv("GROQ_API_KEY") else "Not set",
     }
 
 

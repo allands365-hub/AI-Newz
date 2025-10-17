@@ -1,10 +1,11 @@
 # FastAPI and core dependencies
-fastapi==0.104.1
+fastapi==0.115.6
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 pydantic[email]==2.12.0
 pydantic-settings==2.1.0
-starlette==0.27.0
+# Let FastAPI manage Starlette compatible version
+starlette==0.40.0
 
 # Database
 sqlalchemy==2.0.23
@@ -59,7 +60,8 @@ flake8==6.1.0
 
 # Additional dependencies
 aiofiles==24.1.0
-anyio==3.7.1
+# anyio must be compatible with sse-starlette>=3.0.2
+anyio>=4.7.0
 certifi==2025.8.3
 charset-normalizer==3.4.3
 click==8.2.1
