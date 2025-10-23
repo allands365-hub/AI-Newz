@@ -11,7 +11,7 @@ class GrokService:
     
     def __init__(self):
         self.api_key = settings.effective_grok_api_key
-        self.api_url = settings.GROK_API_URL
+        self.api_url = settings.effective_grok_api_url
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"

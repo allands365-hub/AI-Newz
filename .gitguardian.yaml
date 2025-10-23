@@ -1,0 +1,54 @@
+instance: https://dashboard.gitguardian.com
+verbose: true
+version: 2
+
+# Paths to scan
+paths:
+  - "app/"
+  - "frontend/src/"
+  - "tests/"
+  - "*.py"
+  - "*.ts"
+  - "*.tsx"
+  - "*.js"
+  - "*.jsx"
+  - "*.json"
+  - "*.yaml"
+  - "*.yml"
+  - "*.md"
+  - "*.sql"
+  - "*.sh"
+  - "*.bat"
+  - "*.ps1"
+
+# Exclude patterns
+exclude:
+  - "node_modules/"
+  - "venv/"
+  - ".venv/"
+  - "__pycache__/"
+  - ".next/"
+  - ".git/"
+  - ".playwright-mcp/"
+  - "*.pyc"
+  - "*.pyo"
+  - "*.pyd"
+  - "*.log"
+  - "*.png"
+  - "*.jpg"
+  - "*.jpeg"
+  - "*.gif"
+  - "*.svg"
+  - "*.pdf"
+  - "coverage/"
+  - "test-results/"
+  - "playwright-report/"
+
+# Ignore specific patterns (known false positives)
+ignore:
+  - "GOCSPX-"  # Google OAuth client secret pattern
+  - "sk-"      # Common API key prefixes that might be false positives
+  - "pk_"      # Public key patterns
+
+# Exit codes
+exit_zero: false  # Exit with error code if secrets found

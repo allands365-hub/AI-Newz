@@ -209,89 +209,59 @@ class EmailService:
                         {% endif %}
                       </td>
                     </tr>
-                    <!-- Body: two columns -->
+                    <!-- Body: full width -->
                     <tr>
                       <td class="p-24" style="padding:24px;">
-                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                        <!-- Opening -->
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:20px;">
+                          <tr><td style="font-family:Segoe UI,Roboto,Arial,sans-serif; color:#374151; font-size:16px; line-height:1.6;">{{ newsletter.opening }}</td></tr>
+                        </table>
+                        {% for section in newsletter.sections %}
+                        {% if (section.content | default('') | trim) != (newsletter.opening | default('') | trim) %}
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:20px;">
                           <tr>
-                            <!-- Main column -->
-                            <td class="stack" width="64%" valign="top" style="padding-right:16px;">
-                              <!-- Opening -->
-                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:20px;">
-                                <tr><td style="font-family:Segoe UI,Roboto,Arial,sans-serif; color:#374151; font-size:16px; line-height:1.6;">{{ newsletter.opening }}</td></tr>
-                              </table>
-                              {% for section in newsletter.sections %}
-                              {% if (section.content | default('') | trim) != (newsletter.opening | default('') | trim) %}
-                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:20px;">
-                                <tr>
-                                  <td style="font-family:Segoe UI,Roboto,Arial,sans-serif;">
-                                    <h2 style="margin:0 0 8px; color:#4f46e5; font-size:18px;">{{ section.title }}</h2>
-                                    <div style="color:#374151; font-size:15px; line-height:1.6;">{{ section.content | replace('\n', '<br>') | safe }}</div>
-                                  </td>
-                                </tr>
-                              </table>
-                              {% endif %}
-                              {% endfor %}
-
-                              {% if newsletter.articles %}
-                              <!-- Featured Articles grid -->
-                              <h2 style="font-family:Segoe UI,Roboto,Arial,sans-serif; color:#111827; font-size:18px; margin:24px 0 12px;">Featured articles</h2>
-                              {% for article in newsletter.articles %}
-                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:12px; border:1px solid #eef2f7; border-radius:8px;">
-                                <tr>
-                                  {% set img = article.thumbnail_url or article.image_url %}
-                                  {% if img %}
-                                  <td width="96" valign="top" style="padding:12px 0 12px 12px;">
-                                    <a href="{{ article.url }}"><img src="{{ img }}" width="84" height="84" alt="" style="display:block; width:84px; height:84px; object-fit:cover; border-radius:8px;"></a>
-                                  </td>
-                                  {% endif %}
-                                  <td style="padding:12px 14px; font-family:Segoe UI,Roboto,Arial,sans-serif;">
-                                    <a href="{{ article.url }}" style="color:#1d4ed8; text-decoration:none; font-weight:600;">{{ article.title }}</a>
-                                    {% if article.summary %}
-                                      <div style="color:#4b5563; font-size:14px; margin-top:6px;">{{ article.summary }}</div>
-                                    {% endif %}
-                                    <div style="color:#6b7280; font-size:12px; margin-top:6px;">
-                                      {{ article.author or 'Unknown' }}{% if article.published_at %} • {{ article.published_at[:10] }}{% endif %}
-                                    </div>
-                                  </td>
-                                </tr>
-                              </table>
-                              {% endfor %}
-                              {% endif %}
+                            <td style="font-family:Segoe UI,Roboto,Arial,sans-serif;">
+                              <h2 style="margin:0 0 8px; color:#4f46e5; font-size:18px;">{{ section.title }}</h2>
+                              <div style="color:#374151; font-size:15px; line-height:1.6;">{{ section.content | replace('\n', '<br>') | safe }}</div>
                             </td>
+                          </tr>
+                        </table>
+                        {% endif %}
+                        {% endfor %}
 
-                            <!-- Sidebar -->
-                            <td class="stack" width="36%" valign="top" style="padding-left:16px;">
-                              <!-- Highlight card -->
-                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f3f4f6; border-radius:10px; margin-bottom:16px;">
-                                <tr>
-                                  <td style="padding:16px; font-family:Segoe UI,Roboto,Arial,sans-serif;">
-                                    <h3 style="margin:0 0 8px; font-size:16px; color:#111827;">From around the web</h3>
-                                    <ul style="padding-left:18px; margin:0; color:#374151; font-size:14px;">
-                                      {% if newsletter.articles %}
-                                        {% for article in newsletter.articles[:4] %}
-                                          <li style="margin:6px 0;">
-                                            <a href="{{ article.url }}" style="color:#1f2937; text-decoration:none;">{{ article.title }}</a>
-                                          </li>
-                                        {% endfor %}
-                                      {% else %}
-                                          <li style="margin:6px 0;">AI and industry updates curated for you</li>
-                                      {% endif %}
-                                    </ul>
-                                  </td>
-                                </tr>
-                              </table>
+                        {% if newsletter.articles %}
+                        <!-- Featured Articles grid - Full width -->
+                        <h2 style="font-family:Segoe UI,Roboto,Arial,sans-serif; color:#111827; font-size:18px; margin:24px 0 12px;">Featured articles</h2>
+                        {% for article in newsletter.articles %}
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:16px; border:1px solid #eef2f7; border-radius:8px; background:#ffffff;">
+                          <tr>
+                            {% set img = article.thumbnail_url or article.image_url %}
+                            {% if img %}
+                            <td width="120" valign="top" style="padding:16px 0 16px 16px;">
+                              <a href="{{ article.url }}"><img src="{{ img }}" width="100" height="100" alt="" style="display:block; width:100px; height:100px; object-fit:cover; border-radius:8px;"></a>
+                            </td>
+                            {% endif %}
+                            <td style="padding:16px 20px; font-family:Segoe UI,Roboto,Arial,sans-serif; {% if not img %}padding-left:20px;{% endif %}">
+                              <a href="{{ article.url }}" style="color:#1d4ed8; text-decoration:none; font-weight:600; font-size:16px; line-height:1.4;">{{ article.title }}</a>
+                              {% if article.summary %}
+                                <div style="color:#4b5563; font-size:14px; margin-top:8px; line-height:1.5;">{{ article.summary }}</div>
+                              {% endif %}
+                              <div style="color:#6b7280; font-size:12px; margin-top:8px;">
+                                {{ article.author or 'Unknown' }}{% if article.published_at %} • {{ article.published_at[:10] }}{% endif %}
+                              </div>
+                            </td>
+                          </tr>
+                        </table>
+                        {% endfor %}
+                        {% endif %}
 
-                              <!-- CTA card -->
-                              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#eef2ff; border-radius:10px;">
-                                <tr>
-                                  <td style="padding:16px; font-family:Segoe UI,Roboto,Arial,sans-serif; color:#3730a3;">
-                                    <div style="font-weight:700; margin-bottom:8px;">Do more with AI‑Newz</div>
-                                    <div style="font-size:14px; color:#4338ca;">Generate, curate, and send in minutes.</div>
-                                    <div style="margin-top:12px;"><a href="#" class="btn" style="background:#4338ca;">Try Pro</a></div>
-                                  </td>
-                                </tr>
-                              </table>
+                        <!-- Call to Action - Full width -->
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#eef2ff; border-radius:10px; margin-top:24px;">
+                          <tr>
+                            <td style="padding:20px; font-family:Segoe UI,Roboto,Arial,sans-serif; color:#3730a3; text-align:center;">
+                              <div style="font-weight:700; margin-bottom:8px; font-size:16px;">Do more with AI‑Newz</div>
+                              <div style="font-size:14px; color:#4338ca; margin-bottom:16px;">Generate, curate, and send in minutes.</div>
+                              <div><a href="#" class="btn" style="background:#4338ca;">Try Pro</a></div>
                             </td>
                           </tr>
                         </table>

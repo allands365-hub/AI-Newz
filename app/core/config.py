@@ -50,6 +50,18 @@ class Settings(BaseSettings):
             print(f"   GROQ_API_KEY: {self.GROQ_API_KEY}")
         return api_key
     
+    @property
+    def effective_grok_api_url(self) -> str:
+        """Get the effective Grok API URL, checking both GROK_API_URL and GROQ_API_URL"""
+        api_url = self.GROK_API_URL or self.GROQ_API_URL
+        if api_url:
+            print(f"[OK] Grok API URL loaded: {api_url}")
+        else:
+            print("[ERROR] No Grok API URL found in environment variables")
+            print(f"   GROK_API_URL: {self.GROK_API_URL}")
+            print(f"   GROQ_API_URL: {self.GROQ_API_URL}")
+        return api_url
+    
     # Email Configuration
     RESEND_API_KEY: Optional[str] = None
     FROM_EMAIL: str = "noreply@resend.dev"  # Use Resend's verified domain for testing
@@ -65,6 +77,7 @@ class Settings(BaseSettings):
     GROK_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None  # Alternative naming
     GROK_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
+    GROQ_API_URL: Optional[str] = None  # Alternative naming
     
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100

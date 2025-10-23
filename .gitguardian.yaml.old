@@ -1,0 +1,64 @@
+# GitGuardian Shield Configuration for AI-Newz Project
+# This file configures ggshield for this specific project
+
+# API Configuration
+api_url: https://api.gitguardian.com
+
+# Scan Configuration
+paths:
+  - "app/"
+  - "frontend/src/"
+  - "tests/"
+  - "*.py"
+  - "*.ts"
+  - "*.tsx"
+  - "*.js"
+  - "*.jsx"
+  - "*.json"
+  - "*.yaml"
+  - "*.yml"
+  - "*.md"
+  - "*.sql"
+  - "*.sh"
+  - "*.bat"
+  - "*.ps1"
+
+# Exclude patterns (files/folders to ignore)
+exclude:
+  - "node_modules/"
+  - "venv/"
+  - ".venv/"
+  - "__pycache__/"
+  - ".next/"
+  - ".git/"
+  - ".playwright-mcp/"
+  - "*.pyc"
+  - "*.pyo"
+  - "*.pyd"
+  - "*.log"
+  - "*.png"
+  - "*.jpg"
+  - "*.jpeg"
+  - "*.gif"
+  - "*.svg"
+  - "*.pdf"
+  - "coverage/"
+  - "test-results/"
+  - "playwright-report/"
+
+# Secret detection settings
+min_entropy: 3.0
+max_entropy: 8.0
+
+# Ignore specific patterns (known false positives)
+ignore:
+  - "GOCSPX-"  # Google OAuth client secret pattern (if you regenerate)
+  - "sk-"      # Common API key prefixes that might be false positives
+  - "pk_"      # Public key patterns
+
+# Output settings
+verbose: true
+show_secrets: false  # Don't show actual secrets in output
+
+# Exit codes
+exit_zero: false  # Exit with error code if secrets found

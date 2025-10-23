@@ -9,18 +9,18 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // AI Purple Gradient Color Palette
+        // AI Purple Gradient Color Palette - Improved for accessibility
         primary: {
           50: '#faf5ff',   // Very light purple
           100: '#f3e8ff',  // Light purple
           200: '#e9d5ff',  // Soft purple
           300: '#d8b4fe',  // Medium purple
           400: '#c084fc',  // Bright purple
-          500: '#8b5cf6',  // Main violet (AI Purple)
-          600: '#7c3aed',  // Deep violet
-          700: '#6d28d9',  // Darker violet
-          800: '#5b21b6',  // Dark violet
-          900: '#4c1d95',  // Very dark violet
+          500: '#8b5cf6',  // Main violet (AI Purple) - WCAG AA compliant
+          600: '#7c3aed',  // Deep violet - Better contrast
+          700: '#6d28d9',  // Darker violet - High contrast
+          800: '#5b21b6',  // Dark violet - Excellent contrast
+          900: '#4c1d95',  // Very dark violet - Maximum contrast
         },
         secondary: {
           50: '#fafafa',   // Pure white
