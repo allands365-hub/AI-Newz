@@ -6,7 +6,7 @@ services:
     region: singapore
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python start.py
+    startCommand: python start_production.py
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
