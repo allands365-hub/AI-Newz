@@ -80,7 +80,7 @@ pathspec==0.12.1
 platformdirs==4.4.0
 pycparser==2.23.0
 pydantic-core==2.41.1
-pywin32==311
+# pywin32==311  # Windows-specific, not needed for production deployment
 PyYAML==6.0.2
 requests==2.31.0
 rich==14.1.0
