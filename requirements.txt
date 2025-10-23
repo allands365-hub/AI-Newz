@@ -7,6 +7,9 @@ pydantic-settings==2.1.0
 # Let FastAPI manage Starlette compatible version
 starlette==0.40.0
 
+# Python version compatibility for deployment
+typing-extensions>=4.15.0; python_version<"3.11"
+
 # Database
 sqlalchemy>=2.0.36
 alembic==1.13.1

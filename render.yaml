@@ -1,0 +1,127 @@
+services:
+  # AI-Newz Backend API Service
+  - type: web
+    name: ai-newz-backend
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python start.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.10
+      - key: GROK_API_KEY
+        sync: false  # Set this in Render dashboard
+      - key: GROQ_API_KEY
+        sync: false  # Set this in Render dashboard
+      - key: GROK_API_URL
+        value: https://api.groq.com/openai/v1
+      - key: GROQ_API_URL
+        value: https://api.groq.com/openai/v1
+      - key: SUPABASE_URL
+        sync: false  # Set this in Render dashboard
+      - key: SUPABASE_ANON_KEY
+        sync: false  # Set this in Render dashboard
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false  # Set this in Render dashboard
+      - key: RESEND_API_KEY
+        sync: false  # Set this in Render dashboard
+      - key: GOOGLE_CLIENT_ID
+        sync: false  # Set this in Render dashboard
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false  # Set this in Render dashboard
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+    autoDeploy: true
+    branch: main
+    rootDir: ./
+    dockerfilePath: ""
+    dockerContext: ""
+    dockerCommand: ""
+    dockerfilePath: ""
+    dockerContext: ""
+    dockerCommand: ""
+    pullRequestPreviewsEnabled: false
+    numInstances: 1
+    disk:
+      name: ai-newz-storage
+      mountPath: /opt/render/project/storage
+      sizeGB: 1
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-XSS-Protection
+        value: 1; mode=block
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: /api/*
+
+  # AI-Newz Frontend Service
+  - type: static
+    name: ai-newz-frontend
+    buildCommand: cd frontend && npm ci && npm run build
+    publishPath: frontend/out
+    pullRequestPreviewsEnabled: false
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-XSS-Protection
+        value: 1; mode=block
+      - path: /_next/static/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /static/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://ai-newz-backend.onrender.com
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false  # Set this in Render dashboard
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false  # Set this in Render dashboard
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+# Database Service (if needed)
+databases:
+  - name: ai-newz-db
+    plan: free
+    region: singapore
+    databaseName: ai_newz
+    user: ai_newz_user
+    ipAllowList: []
+    maxConnections: 20
+    maintenanceWindow:
+      day: sunday
+      hour: 2
+      minute: 0
+    terminationProtection: false
+    version: "15"
+
+# Environment Variables (Global)
+envVars:
+  - key: NODE_ENV
+    value: production
+  - key: PYTHON_ENV
+    value: production
+  - key: LOG_LEVEL
+    value: info
+  - key: CORS_ORIGINS
+    value: https://ai-newz-frontend.onrender.com,https://ai-newz.onrender.com
