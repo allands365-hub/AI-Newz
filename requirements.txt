@@ -1,3 +1,7 @@
+# Python version requirement (must be 3.11.x for compatibility)
+# This ensures compatibility with all dependencies
+# Python 3.13 has breaking changes (cgi module removed, etc.)
+
 # FastAPI and core dependencies
 fastapi==0.115.6
 uvicorn[standard]==0.24.0
@@ -30,7 +34,7 @@ google-auth-httplib2==0.2.0
 httpx==0.27.2
 
 # RSS parsing and content processing
-feedparser==6.0.10
+feedparser>=6.0.11
 beautifulsoup4==4.12.2
 # lxml>=5.0.0  # Not needed - BeautifulSoup uses html.parser
 python-dateutil==2.8.2
