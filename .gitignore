@@ -237,4 +237,21 @@ temp/
 # Cursor/Playwright artifacts
 .cursor/
 .playwright-mcp/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.ico
+
+# Test artifacts and screenshots
+test-results/
+playwright-report/
+test-results.xml
+coverage/
+
+# Analysis and documentation files
+*_analysis.md
+unused_modules_analysis.md
 
