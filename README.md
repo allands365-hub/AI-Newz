@@ -2,7 +2,7 @@
 
 > Transform RSS feeds into personalized newsletters with AI. Built with FastAPI, Next.js, and Groq.
 
-![AI-Newz Screenshot](./docs/screenshot.png)
+![AI-Newz Screenshot](./screenshot.png)
 
 ---
 
